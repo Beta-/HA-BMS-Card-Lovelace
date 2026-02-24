@@ -1260,8 +1260,42 @@ const styles = i$3`
     margin-bottom: 16px;
   }
 
+  .analysis-section {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin-top: -6px;
+    margin-bottom: 4px;
+  }
+
+  .analysis-title {
+    font-weight: 650;
+    font-size: 14px;
+    color: var(--secondary-text-color);
+    letter-spacing: 0.2px;
+    margin: 2px 2px 0;
+  }
+
+  .analysis-subtitle {
+    font-weight: 500;
+    font-size: 12px;
+    color: var(--secondary-text-color);
+    opacity: 0.9;
+    margin: 0 2px;
+  }
+
+  .analysis-grid {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 8px;
+  }
+
   @media (max-width: 900px) {
     .temps-grid {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .analysis-grid {
       grid-template-columns: repeat(2, minmax(0, 1fr));
     }
   }
@@ -1933,6 +1967,13 @@ class JkBmsReactorCard extends i {
     this._sampleIntervalMs = 2e3;
     this._historyMax = 60;
     this._historySeeded = false;
+    this._analyticsLoaded = false;
+    this._analyticsLastTs = 0;
+    this._analyticsChargeKwh = 0;
+    this._analyticsDischargeKwh = 0;
+    this._dodSessions = [];
+    this._dischargeSession = null;
+    this._dischargeActiveMs = 0;
   }
   static get styles() {
     return styles;
@@ -1945,6 +1986,118 @@ class JkBmsReactorCard extends i {
     this._resizeObserver.observe(this);
     this._updateCellFlowDotRadii();
     this._updateFlowLineY();
+    this._loadAnalytics();
+  }
+  _analyticsStorageKey() {
+    const c2 = this._config;
+    const base = [c2.pack_voltage, c2.current, c2.soc, c2.cells_prefix ?? "", String(c2.cells_count ?? ""), (c2.cells ?? []).join("|")].join("::");
+    return `jk_bms_reactor_analytics::${base}`;
+  }
+  _loadAnalytics() {
+    if (this._analyticsLoaded) return;
+    this._analyticsLoaded = true;
+    try {
+      const raw = window.localStorage.getItem(this._analyticsStorageKey());
+      if (!raw) return;
+      const parsed = JSON.parse(raw);
+      if (parsed && typeof parsed === "object") {
+        if (Number.isFinite(parsed.chargeKwh)) this._analyticsChargeKwh = parsed.chargeKwh;
+        if (Number.isFinite(parsed.dischargeKwh)) this._analyticsDischargeKwh = parsed.dischargeKwh;
+        if (Array.isArray(parsed.dodSessions)) {
+          this._dodSessions = parsed.dodSessions.filter((x2) => Number.isFinite(x2) && x2 >= 0 && x2 <= 100).slice(-200);
+        }
+      }
+    } catch {
+    }
+  }
+  _persistAnalytics() {
+    try {
+      const payload = {
+        chargeKwh: this._analyticsChargeKwh,
+        dischargeKwh: this._analyticsDischargeKwh,
+        dodSessions: this._dodSessions,
+        ts: Date.now()
+      };
+      window.localStorage.setItem(this._analyticsStorageKey(), JSON.stringify(payload));
+    } catch {
+    }
+  }
+  _firstExistingEntityId(ids) {
+    var _a2;
+    for (const id of ids) {
+      const entityId = (id ?? "").trim();
+      if (!entityId) continue;
+      if (((_a2 = this.hass) == null ? void 0 : _a2.states) && this.hass.states[entityId]) return entityId;
+    }
+    return null;
+  }
+  _getAnalyticsSoc() {
+    const entityId = this._firstExistingEntityId([
+      this._config.analytics_soc,
+      this._config.soc,
+      "sensor.main_mainbms_soc"
+    ]);
+    return entityId ? getNumericValue(this.hass, entityId) : null;
+  }
+  _updateAnalytics(packState) {
+    if (!this.hass || !this._config) return;
+    this._loadAnalytics();
+    const now = Date.now();
+    const last = this._analyticsLastTs;
+    this._analyticsLastTs = now;
+    if (!last) return;
+    const dt = now - last;
+    if (dt <= 0 || dt > 10 * 60 * 1e3) return;
+    const v2 = packState.voltage;
+    const a2 = packState.current;
+    if (v2 === null || a2 === null) return;
+    const powerW = v2 * a2;
+    const dischargeW = Math.max(-powerW, 0);
+    const chargeW = Math.max(powerW, 0);
+    const directChargeId = this._firstExistingEntityId([
+      this._config.analytics_charge_energy_total_kwh,
+      "sensor.main_mainbms_charge_energy_total_kwh"
+    ]);
+    const directDischargeId = this._firstExistingEntityId([
+      this._config.analytics_discharge_energy_total_kwh,
+      "sensor.main_mainbms_discharge_energy_total_kwh"
+    ]);
+    const hasDirectCharge = !!directChargeId;
+    const hasDirectDischarge = !!directDischargeId;
+    const kwh = (w2) => w2 * dt / 36e5 / 1e3;
+    if (!hasDirectDischarge) this._analyticsDischargeKwh += kwh(dischargeW);
+    if (!hasDirectCharge) this._analyticsChargeKwh += kwh(chargeW);
+    const minI = Number.isFinite(this._config.min_current_for_session_a) ? this._config.min_current_for_session_a : 2;
+    const minSessionSeconds = Number.isFinite(this._config.min_session_seconds) ? this._config.min_session_seconds : 120;
+    const windowN = Number.isFinite(this._config.dod_sessions_window) ? Math.max(1, Math.min(200, this._config.dod_sessions_window)) : 30;
+    const soc = this._getAnalyticsSoc();
+    const discharging = a2 <= -Math.abs(minI);
+    if (discharging) {
+      this._dischargeActiveMs += dt;
+      if (this._dischargeSession === null) {
+        if (soc !== null && Number.isFinite(soc)) {
+          this._dischargeSession = { startTs: now, startSoc: soc, lastSoc: soc };
+        }
+      } else {
+        if (soc !== null && Number.isFinite(soc)) this._dischargeSession.lastSoc = soc;
+      }
+    } else {
+      if (this._dischargeSession && this._dischargeActiveMs >= minSessionSeconds * 1e3) {
+        const start = this._dischargeSession.startSoc;
+        const end = this._dischargeSession.lastSoc;
+        if (Number.isFinite(start) && Number.isFinite(end) && start > end) {
+          const dod = Math.max(0, Math.min(100, start - end));
+          if (dod > 0.1) {
+            this._dodSessions = [...this._dodSessions, dod].slice(-windowN);
+          }
+        }
+      }
+      this._dischargeSession = null;
+      this._dischargeActiveMs = 0;
+    }
+    if (now % 1e4 < dt) {
+      this._persistAnalytics();
+    }
   }
   disconnectedCallback() {
     var _a2;
@@ -1954,6 +2107,9 @@ class JkBmsReactorCard extends i {
     if (this._copyHintTimer) {
       window.clearTimeout(this._copyHintTimer);
       this._copyHintTimer = void 0;
+    }
+    if (this._analyticsLoaded) {
+      this._persistAnalytics();
     }
   }
   _setCopyHint(msg) {
@@ -2198,6 +2354,7 @@ class JkBmsReactorCard extends i {
       if (arr.length > this._historyMax) arr.splice(0, arr.length - this._historyMax);
     };
     pushEntity(this._config.mos_temp, packState.mosTemp ?? null);
+    this._updateAnalytics(packState);
     for (const entityId of this._config.temp_sensors ?? []) {
       if (!entityId) continue;
       const raw = ((_a2 = this.hass.states[entityId]) == null ? void 0 : _a2.state) ?? null;
@@ -2415,6 +2572,47 @@ class JkBmsReactorCard extends i {
       const clamped = Math.max(0, Math.min(1, t2));
       return clamped * total;
     })() : null;
+    const chargeTotalId = this._firstExistingEntityId([
+      this._config.analytics_charge_energy_total_kwh,
+      "sensor.main_mainbms_charge_energy_total_kwh"
+    ]);
+    const dischargeTotalId = this._firstExistingEntityId([
+      this._config.analytics_discharge_energy_total_kwh,
+      "sensor.main_mainbms_discharge_energy_total_kwh"
+    ]);
+    const cycleCountId = this._firstExistingEntityId([
+      this._config.analytics_cycle_count,
+      "sensor.main_mainbms_cycle_count"
+    ]);
+    const capacityAhId = this._firstExistingEntityId([
+      this._config.analytics_capacity_ah,
+      "sensor.main_mainbns_capacity_ah"
+    ]);
+    const chargeTotalKwh = chargeTotalId ? getNumericValue(this.hass, chargeTotalId) : null;
+    const dischargeTotalKwh = dischargeTotalId ? getNumericValue(this.hass, dischargeTotalId) : null;
+    const cycleCountDirect = cycleCountId ? getNumericValue(this.hass, cycleCountId) : null;
+    const lifetimeDischargeKwh = dischargeTotalKwh ?? (this._analyticsDischargeKwh || null);
+    const lifetimeChargeKwh = chargeTotalKwh ?? (this._analyticsChargeKwh || null);
+    const nominalCapacityAh = (() => {
+      if (Number.isFinite(this._config.nominal_capacity_ah)) return this._config.nominal_capacity_ah;
+      const fromEntity = capacityAhId ? getNumericValue(this.hass, capacityAhId) : null;
+      if (fromEntity !== null && Number.isFinite(fromEntity) && fromEntity > 0) return fromEntity;
+      return 314;
+    })();
+    const nominalVoltageV = Number.isFinite(this._config.nominal_voltage_v) ? this._config.nominal_voltage_v : 51.2;
+    const nominalPackKwh = nominalCapacityAh > 0 && nominalVoltageV > 0 ? nominalCapacityAh * nominalVoltageV / 1e3 : null;
+    const equivalentCycles = cycleCountDirect !== null && Number.isFinite(cycleCountDirect) ? cycleCountDirect : lifetimeDischargeKwh !== null && nominalPackKwh !== null && nominalPackKwh > 0 ? lifetimeDischargeKwh / nominalPackKwh : null;
+    const measuredCapacityAhId = this._firstExistingEntityId([
+      this._config.measured_capacity_ah
+    ]);
+    const measuredCapacityAh = measuredCapacityAhId ? getNumericValue(this.hass, measuredCapacityAhId) : null;
+    const sohPct = measuredCapacityAh !== null && Number.isFinite(measuredCapacityAh) && nominalCapacityAh > 0 ? measuredCapacityAh / nominalCapacityAh * 100 : null;
+    const avgDodPct = this._dodSessions.length ? this._dodSessions.reduce((sum, x2) => sum + x2, 0) / this._dodSessions.length : null;
+    const lifetimeTitle = dischargeTotalId ? `Direct: ${dischargeTotalId}` : "Derived: integrated discharge power (local)";
+    const cyclesTitle = cycleCountId ? `Direct: ${cycleCountId}` : lifetimeDischargeKwh !== null && nominalPackKwh !== null ? `Derived: discharge_kWh / nominal_pack_kWh (${formatNumber(nominalPackKwh, 2)} kWh)` : "Derived: needs lifetime discharge kWh and nominal pack kWh";
+    const dodTitle = this._dodSessions.length ? `Derived: rolling avg over ${this._dodSessions.length} discharge sessions` : "Derived: needs SOC + discharge sessions";
+    const sohTitle = measuredCapacityAhId ? `Derived: ${measuredCapacityAhId} / nominal_capacity_ah` : "Derived: needs measured capacity Ah entity";
+    const showAnalytics = chargeTotalId !== null || dischargeTotalId !== null || cycleCountId !== null || capacityAhId !== null || measuredCapacityAhId !== null || this._analyticsChargeKwh > 0 || this._analyticsDischargeKwh > 0 || this._dodSessions.length > 0;
     return b`
       <div class="flow-section">
         <!-- Charger Node -->
@@ -2525,6 +2723,12 @@ class JkBmsReactorCard extends i {
           <div class="stat-label">Voltage</div>
           <div class="stat-value">${formatNumber(packState.voltage, 2)} V</div>
         </div>
+
+        <div class="stat-panel stat-avg-cell" title="Average of all cell voltages">
+          <div class="stat-label">Avg Cell</div>
+          <div class="stat-value">${avgCellV !== null ? `${formatNumber(avgCellV, 3)} V` : "—"}</div>
+        </div>
+
         <div class="stat-panel stat-current ${current > 0.5 ? "flow-in" : current < -0.5 ? "flow-out" : ""}">
           <svg class="stat-sparkline-svg" viewBox="0 0 100 30" preserveAspectRatio="none" aria-hidden="true">
             <polyline class="sparkline current" points="${this._sparklinePoints(this._history.current)}"></polyline>
@@ -2606,6 +2810,37 @@ class JkBmsReactorCard extends i {
               <div class="stat-value">${formatNumber(t2.temp ?? null, 1)} °C</div>
             </div>
           `)}
+        </div>
+      ` : ""}
+
+      ${showAnalytics ? b`
+        <div class="analysis-section">
+          <div class="analysis-title">Battery analytics</div>
+          <div class="analysis-grid">
+            <div class="stat-panel" title="${lifetimeTitle}">
+              <div class="stat-label">Lifetime discharge</div>
+              <div class="stat-value">${lifetimeDischargeKwh !== null ? `${formatNumber(lifetimeDischargeKwh, 1)} kWh` : "—"}</div>
+            </div>
+            <div class="stat-panel" title="${cyclesTitle}">
+              <div class="stat-label">Eq cycles</div>
+              <div class="stat-value">${equivalentCycles !== null ? formatNumber(equivalentCycles, 1) : "—"}</div>
+            </div>
+            <div class="stat-panel" title="${dodTitle}">
+              <div class="stat-label">Avg DoD</div>
+              <div class="stat-value">${avgDodPct !== null ? `${formatNumber(avgDodPct, 0)}%` : "—"}</div>
+            </div>
+            <div class="stat-panel" title="${sohTitle}">
+              <div class="stat-label">Est SOH</div>
+              <div class="stat-value">${sohPct !== null ? `${formatNumber(sohPct, 0)}%` : "—"}</div>
+            </div>
+          </div>
+          ${lifetimeChargeKwh !== null || lifetimeDischargeKwh !== null ? b`
+            <div class="analysis-subtitle">
+              ${lifetimeChargeKwh !== null ? b`Charge: ${formatNumber(lifetimeChargeKwh, 1)} kWh` : ""}
+              ${lifetimeChargeKwh !== null && lifetimeDischargeKwh !== null ? b` · ` : ""}
+              ${lifetimeDischargeKwh !== null ? b`Discharge: ${formatNumber(lifetimeDischargeKwh, 1)} kWh` : ""}
+            </div>
+          ` : ""}
         </div>
       ` : ""}
     `;
@@ -3019,6 +3254,17 @@ class JkBmsReactorCardEditor extends i {
       pack_voltage_max: config.pack_voltage_max,
       capacity_remaining: config.capacity_remaining ?? "",
       capacity_total_ah: config.capacity_total_ah,
+      analytics_charge_energy_total_kwh: config.analytics_charge_energy_total_kwh ?? "",
+      analytics_discharge_energy_total_kwh: config.analytics_discharge_energy_total_kwh ?? "",
+      analytics_cycle_count: config.analytics_cycle_count ?? "",
+      analytics_capacity_ah: config.analytics_capacity_ah ?? "",
+      analytics_soc: config.analytics_soc ?? "",
+      measured_capacity_ah: config.measured_capacity_ah ?? "",
+      nominal_capacity_ah: config.nominal_capacity_ah,
+      nominal_voltage_v: config.nominal_voltage_v,
+      min_current_for_session_a: config.min_current_for_session_a,
+      min_session_seconds: config.min_session_seconds,
+      dod_sessions_window: config.dod_sessions_window,
       energy_total_kwh: config.energy_total_kwh,
       energy_uvp_cell_v: config.energy_uvp_cell_v,
       energy_soc100_cell_v: config.energy_soc100_cell_v,
@@ -3248,6 +3494,132 @@ class JkBmsReactorCardEditor extends i {
             title="Cell-level voltage treated as 100% reference for the estimate. Must be greater than UVP voltage. If blank, uses Pack Voltage Max / cells."
           ></ha-textfield>
           <div class="description">Used as the upper reference for the energy estimate</div>
+        </div>
+
+        <div class="section-title">Battery Analytics (Optional)</div>
+
+        <div class="option">
+          <label title="Preferred: a persistent counter of total charged energy (kWh). If blank, the card will derive charge/discharge kWh locally by integrating power.">Charge Energy Total (kWh)</label>
+          ${this._renderEntityPicker({
+      value: this._config.analytics_charge_energy_total_kwh || "",
+      configValue: "analytics_charge_energy_total_kwh",
+      includeDomains: ["sensor", "input_number", "number"],
+      onChanged: this._valueChanged
+    })}
+          <div class="description">Preferred entity: sensor.main_mainbms_charge_energy_total_kwh</div>
+        </div>
+
+        <div class="option">
+          <label title="Preferred: a persistent counter of total discharged energy (kWh). If blank, the card will derive charge/discharge kWh locally by integrating power.">Discharge Energy Total (kWh)</label>
+          ${this._renderEntityPicker({
+      value: this._config.analytics_discharge_energy_total_kwh || "",
+      configValue: "analytics_discharge_energy_total_kwh",
+      includeDomains: ["sensor", "input_number", "number"],
+      onChanged: this._valueChanged
+    })}
+          <div class="description">Preferred entity: sensor.main_mainbms_discharge_energy_total_kwh</div>
+        </div>
+
+        <div class="option">
+          <label title="Preferred: a persistent cycle counter. If blank, equivalent cycles are estimated from discharged kWh / nominal pack kWh.">Cycle Count</label>
+          ${this._renderEntityPicker({
+      value: this._config.analytics_cycle_count || "",
+      configValue: "analytics_cycle_count",
+      includeDomains: ["sensor", "input_number", "number"],
+      onChanged: this._valueChanged
+    })}
+          <div class="description">Preferred entity: sensor.main_mainbms_cycle_count</div>
+        </div>
+
+        <div class="option">
+          <label title="Optional capacity source (Ah). Used for nominal pack kWh if nominal_capacity_ah is not set, and for SOH if measured_capacity_ah is not set.">Capacity (Ah)</label>
+          ${this._renderEntityPicker({
+      value: this._config.analytics_capacity_ah || "",
+      configValue: "analytics_capacity_ah",
+      includeDomains: ["sensor", "input_number", "number"],
+      onChanged: this._valueChanged
+    })}
+          <div class="description">Preferred entity: sensor.main_mainbns_capacity_ah</div>
+        </div>
+
+        <div class="option">
+          <label title="Optional measured capacity (Ah). When provided, SOH = measured_capacity_ah / nominal_capacity_ah * 100.">Measured Capacity (Ah)</label>
+          ${this._renderEntityPicker({
+      value: this._config.measured_capacity_ah || "",
+      configValue: "measured_capacity_ah",
+      includeDomains: ["sensor", "input_number", "number"],
+      onChanged: this._valueChanged
+    })}
+        </div>
+
+        <div class="option">
+          <label title="Override SOC used for discharge session tracking (Avg DoD). Defaults to the main SOC entity.">Analytics SOC Entity</label>
+          ${this._renderEntityPicker({
+      value: this._config.analytics_soc || "",
+      configValue: "analytics_soc",
+      includeDomains: ["sensor", "input_number", "number"],
+      onChanged: this._valueChanged
+    })}
+        </div>
+
+        <div class="option">
+          <label title="Nominal capacity used for cycles and SOH. Default: 314Ah.">Nominal Capacity (Ah)</label>
+          <ha-textfield
+            type="number"
+            step="0.1"
+            .value=${this._config.nominal_capacity_ah ?? ""}
+            .configValue=${"nominal_capacity_ah"}
+            @input=${this._valueChanged}
+            placeholder="314"
+          ></ha-textfield>
+        </div>
+
+        <div class="option">
+          <label title="Nominal pack voltage used for cycles when no pack_voltage_max is set. Default: 51.2V for 16S LFP.">Nominal Voltage (V)</label>
+          <ha-textfield
+            type="number"
+            step="0.1"
+            .value=${this._config.nominal_voltage_v ?? ""}
+            .configValue=${"nominal_voltage_v"}
+            @input=${this._valueChanged}
+            placeholder="51.2"
+          ></ha-textfield>
+        </div>
+
+        <div class="option">
+          <label title="Discharge current threshold for session tracking. Sessions start when current is below -threshold for long enough.">Min Current For Session (A)</label>
+          <ha-textfield
+            type="number"
+            step="0.1"
+            .value=${this._config.min_current_for_session_a ?? ""}
+            .configValue=${"min_current_for_session_a"}
+            @input=${this._valueChanged}
+            placeholder="2"
+          ></ha-textfield>
+        </div>
+
+        <div class="option">
+          <label title="Minimum discharge session duration required to count toward Avg DoD.">Min Session Seconds</label>
+          <ha-textfield
+            type="number"
+            step="1"
+            .value=${this._config.min_session_seconds ?? ""}
+            .configValue=${"min_session_seconds"}
+            @input=${this._valueChanged}
+            placeholder="120"
+          ></ha-textfield>
+        </div>
+
+        <div class="option">
+          <label title="Rolling window of discharge sessions used to compute Avg DoD.">DoD Sessions Window</label>
+          <ha-textfield
+            type="number"
+            step="1"
+            .value=${this._config.dod_sessions_window ?? ""}
+            .configValue=${"dod_sessions_window"}
+            @input=${this._valueChanged}
+            placeholder="30"
+          ></ha-textfield>
         </div>
 
         <div class="section-title">Advanced (Optional)</div>

@@ -547,8 +547,42 @@ export const styles = css`
     margin-bottom: 16px;
   }
 
+  .analysis-section {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin-top: -6px;
+    margin-bottom: 4px;
+  }
+
+  .analysis-title {
+    font-weight: 650;
+    font-size: 14px;
+    color: var(--secondary-text-color);
+    letter-spacing: 0.2px;
+    margin: 2px 2px 0;
+  }
+
+  .analysis-subtitle {
+    font-weight: 500;
+    font-size: 12px;
+    color: var(--secondary-text-color);
+    opacity: 0.9;
+    margin: 0 2px;
+  }
+
+  .analysis-grid {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 8px;
+  }
+
   @media (max-width: 900px) {
     .temps-grid {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .analysis-grid {
       grid-template-columns: repeat(2, minmax(0, 1fr));
     }
   }

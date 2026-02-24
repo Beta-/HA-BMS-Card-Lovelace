@@ -147,6 +147,19 @@ export class JkBmsReactorCardEditor extends LitElement {
       capacity_remaining: config.capacity_remaining ?? '',
       capacity_total_ah: config.capacity_total_ah,
 
+      analytics_charge_energy_total_kwh: config.analytics_charge_energy_total_kwh ?? '',
+      analytics_discharge_energy_total_kwh: config.analytics_discharge_energy_total_kwh ?? '',
+      analytics_cycle_count: config.analytics_cycle_count ?? '',
+      analytics_capacity_ah: config.analytics_capacity_ah ?? '',
+      analytics_soc: config.analytics_soc ?? '',
+      measured_capacity_ah: config.measured_capacity_ah ?? '',
+
+      nominal_capacity_ah: config.nominal_capacity_ah,
+      nominal_voltage_v: config.nominal_voltage_v,
+      min_current_for_session_a: config.min_current_for_session_a,
+      min_session_seconds: config.min_session_seconds,
+      dod_sessions_window: config.dod_sessions_window,
+
       energy_total_kwh: config.energy_total_kwh,
       energy_uvp_cell_v: config.energy_uvp_cell_v,
       energy_soc100_cell_v: config.energy_soc100_cell_v,
@@ -392,6 +405,132 @@ export class JkBmsReactorCardEditor extends LitElement {
             title="Cell-level voltage treated as 100% reference for the estimate. Must be greater than UVP voltage. If blank, uses Pack Voltage Max / cells."
           ></ha-textfield>
           <div class="description">Used as the upper reference for the energy estimate</div>
+        </div>
+
+        <div class="section-title">Battery Analytics (Optional)</div>
+
+        <div class="option">
+          <label title="Preferred: a persistent counter of total charged energy (kWh). If blank, the card will derive charge/discharge kWh locally by integrating power.">Charge Energy Total (kWh)</label>
+          ${this._renderEntityPicker({
+            value: this._config.analytics_charge_energy_total_kwh || '',
+            configValue: 'analytics_charge_energy_total_kwh',
+            includeDomains: ['sensor', 'input_number', 'number'],
+            onChanged: this._valueChanged,
+          })}
+          <div class="description">Preferred entity: sensor.main_mainbms_charge_energy_total_kwh</div>
+        </div>
+
+        <div class="option">
+          <label title="Preferred: a persistent counter of total discharged energy (kWh). If blank, the card will derive charge/discharge kWh locally by integrating power.">Discharge Energy Total (kWh)</label>
+          ${this._renderEntityPicker({
+            value: this._config.analytics_discharge_energy_total_kwh || '',
+            configValue: 'analytics_discharge_energy_total_kwh',
+            includeDomains: ['sensor', 'input_number', 'number'],
+            onChanged: this._valueChanged,
+          })}
+          <div class="description">Preferred entity: sensor.main_mainbms_discharge_energy_total_kwh</div>
+        </div>
+
+        <div class="option">
+          <label title="Preferred: a persistent cycle counter. If blank, equivalent cycles are estimated from discharged kWh / nominal pack kWh.">Cycle Count</label>
+          ${this._renderEntityPicker({
+            value: this._config.analytics_cycle_count || '',
+            configValue: 'analytics_cycle_count',
+            includeDomains: ['sensor', 'input_number', 'number'],
+            onChanged: this._valueChanged,
+          })}
+          <div class="description">Preferred entity: sensor.main_mainbms_cycle_count</div>
+        </div>
+
+        <div class="option">
+          <label title="Optional capacity source (Ah). Used for nominal pack kWh if nominal_capacity_ah is not set, and for SOH if measured_capacity_ah is not set.">Capacity (Ah)</label>
+          ${this._renderEntityPicker({
+            value: this._config.analytics_capacity_ah || '',
+            configValue: 'analytics_capacity_ah',
+            includeDomains: ['sensor', 'input_number', 'number'],
+            onChanged: this._valueChanged,
+          })}
+          <div class="description">Preferred entity: sensor.main_mainbns_capacity_ah</div>
+        </div>
+
+        <div class="option">
+          <label title="Optional measured capacity (Ah). When provided, SOH = measured_capacity_ah / nominal_capacity_ah * 100.">Measured Capacity (Ah)</label>
+          ${this._renderEntityPicker({
+            value: this._config.measured_capacity_ah || '',
+            configValue: 'measured_capacity_ah',
+            includeDomains: ['sensor', 'input_number', 'number'],
+            onChanged: this._valueChanged,
+          })}
+        </div>
+
+        <div class="option">
+          <label title="Override SOC used for discharge session tracking (Avg DoD). Defaults to the main SOC entity.">Analytics SOC Entity</label>
+          ${this._renderEntityPicker({
+            value: this._config.analytics_soc || '',
+            configValue: 'analytics_soc',
+            includeDomains: ['sensor', 'input_number', 'number'],
+            onChanged: this._valueChanged,
+          })}
+        </div>
+
+        <div class="option">
+          <label title="Nominal capacity used for cycles and SOH. Default: 314Ah.">Nominal Capacity (Ah)</label>
+          <ha-textfield
+            type="number"
+            step="0.1"
+            .value=${this._config.nominal_capacity_ah ?? ''}
+            .configValue=${'nominal_capacity_ah'}
+            @input=${this._valueChanged}
+            placeholder="314"
+          ></ha-textfield>
+        </div>
+
+        <div class="option">
+          <label title="Nominal pack voltage used for cycles when no pack_voltage_max is set. Default: 51.2V for 16S LFP.">Nominal Voltage (V)</label>
+          <ha-textfield
+            type="number"
+            step="0.1"
+            .value=${this._config.nominal_voltage_v ?? ''}
+            .configValue=${'nominal_voltage_v'}
+            @input=${this._valueChanged}
+            placeholder="51.2"
+          ></ha-textfield>
+        </div>
+
+        <div class="option">
+          <label title="Discharge current threshold for session tracking. Sessions start when current is below -threshold for long enough.">Min Current For Session (A)</label>
+          <ha-textfield
+            type="number"
+            step="0.1"
+            .value=${this._config.min_current_for_session_a ?? ''}
+            .configValue=${'min_current_for_session_a'}
+            @input=${this._valueChanged}
+            placeholder="2"
+          ></ha-textfield>
+        </div>
+
+        <div class="option">
+          <label title="Minimum discharge session duration required to count toward Avg DoD.">Min Session Seconds</label>
+          <ha-textfield
+            type="number"
+            step="1"
+            .value=${this._config.min_session_seconds ?? ''}
+            .configValue=${'min_session_seconds'}
+            @input=${this._valueChanged}
+            placeholder="120"
+          ></ha-textfield>
+        </div>
+
+        <div class="option">
+          <label title="Rolling window of discharge sessions used to compute Avg DoD.">DoD Sessions Window</label>
+          <ha-textfield
+            type="number"
+            step="1"
+            .value=${this._config.dod_sessions_window ?? ''}
+            .configValue=${'dod_sessions_window'}
+            @input=${this._valueChanged}
+            placeholder="30"
+          ></ha-textfield>
         </div>
 
         <div class="section-title">Advanced (Optional)</div>

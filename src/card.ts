@@ -1,7 +1,7 @@
 import { LitElement, html, svg } from 'lit';
 import { property, state } from 'lit/decorators.js';
 import type { HomeAssistant, JkBmsReactorCardConfig, PackState } from './types';
-import { computePackState, formatNumber } from './ha_state';
+import { computePackState, formatNumber, getNumericValue } from './ha_state';
 import { styles } from './styles';
 
 export class JkBmsReactorCard extends LitElement {
@@ -56,6 +56,19 @@ export class JkBmsReactorCard extends LitElement {
   private _sampleIntervalMs = 2000;
   private _historyMax = 60;
   private _historySeeded = false;
+  private _analyticsLoaded = false;
+  private _analyticsLastTs = 0;
+  private _analyticsChargeKwh = 0;
+  private _analyticsDischargeKwh = 0;
+  private _dodSessions: number[] = [];
+  private _dischargeSession:
+    | {
+      startTs: number;
+      startSoc: number;
+      lastSoc: number;
+    }
+    | null = null;
+  private _dischargeActiveMs = 0;
 
   static get styles() {
     return styles;
@@ -69,6 +82,146 @@ export class JkBmsReactorCard extends LitElement {
     this._resizeObserver.observe(this);
     this._updateCellFlowDotRadii();
     this._updateFlowLineY();
+    this._loadAnalytics();
+  }
+
+  private _analyticsStorageKey(): string {
+    const c = this._config;
+    const base = [c.pack_voltage, c.current, c.soc, c.cells_prefix ?? '', String(c.cells_count ?? ''), (c.cells ?? []).join('|')].join('::');
+    return `jk_bms_reactor_analytics::${base}`;
+  }
+
+  private _loadAnalytics() {
+    if (this._analyticsLoaded) return;
+    this._analyticsLoaded = true;
+    try {
+      const raw = window.localStorage.getItem(this._analyticsStorageKey());
+      if (!raw) return;
+      const parsed = JSON.parse(raw);
+      if (parsed && typeof parsed === 'object') {
+        if (Number.isFinite(parsed.chargeKwh)) this._analyticsChargeKwh = parsed.chargeKwh;
+        if (Number.isFinite(parsed.dischargeKwh)) this._analyticsDischargeKwh = parsed.dischargeKwh;
+        if (Array.isArray(parsed.dodSessions)) {
+          this._dodSessions = parsed.dodSessions.filter((x: any) => Number.isFinite(x) && x >= 0 && x <= 100).slice(-200);
+        }
+      }
+    } catch {
+      // ignore
+    }
+  }
+
+  private _persistAnalytics() {
+    try {
+      const payload = {
+        chargeKwh: this._analyticsChargeKwh,
+        dischargeKwh: this._analyticsDischargeKwh,
+        dodSessions: this._dodSessions,
+        ts: Date.now(),
+      };
+      window.localStorage.setItem(this._analyticsStorageKey(), JSON.stringify(payload));
+    } catch {
+      // ignore
+    }
+  }
+
+  private _firstExistingEntityId(ids: Array<string | undefined | null>): string | null {
+    for (const id of ids) {
+      const entityId = (id ?? '').trim();
+      if (!entityId) continue;
+      if (this.hass?.states && this.hass.states[entityId]) return entityId;
+    }
+    return null;
+  }
+
+  private _getAnalyticsSoc(): number | null {
+    const entityId = this._firstExistingEntityId([
+      this._config.analytics_soc,
+      this._config.soc,
+      'sensor.main_mainbms_soc',
+    ]);
+    return entityId ? getNumericValue(this.hass, entityId) : null;
+  }
+
+  private _updateAnalytics(packState: PackState) {
+    if (!this.hass || !this._config) return;
+    this._loadAnalytics();
+
+    const now = Date.now();
+    const last = this._analyticsLastTs;
+    this._analyticsLastTs = now;
+    if (!last) return;
+
+    const dt = now - last;
+    // Avoid integrating across long gaps (reloads/sleep).
+    if (dt <= 0 || dt > 10 * 60 * 1000) return;
+
+    const v = packState.voltage;
+    const a = packState.current;
+    if (v === null || a === null) return;
+
+    const powerW = (v as number) * (a as number);
+    const dischargeW = Math.max(-powerW, 0); // current<0 => discharge => powerW negative
+    const chargeW = Math.max(powerW, 0);
+
+    // Only integrate if no direct HA totals are configured/present.
+    const directChargeId = this._firstExistingEntityId([
+      this._config.analytics_charge_energy_total_kwh,
+      'sensor.main_mainbms_charge_energy_total_kwh',
+    ]);
+    const directDischargeId = this._firstExistingEntityId([
+      this._config.analytics_discharge_energy_total_kwh,
+      'sensor.main_mainbms_discharge_energy_total_kwh',
+    ]);
+    const hasDirectCharge = !!directChargeId;
+    const hasDirectDischarge = !!directDischargeId;
+
+    const kwh = (w: number) => (w * dt) / 3_600_000 / 1000;
+    if (!hasDirectDischarge) this._analyticsDischargeKwh += kwh(dischargeW);
+    if (!hasDirectCharge) this._analyticsChargeKwh += kwh(chargeW);
+
+    // Discharge session tracking for Avg DoD
+    const minI = Number.isFinite(this._config.min_current_for_session_a)
+      ? (this._config.min_current_for_session_a as number)
+      : 2;
+    const minSessionSeconds = Number.isFinite(this._config.min_session_seconds)
+      ? (this._config.min_session_seconds as number)
+      : 120;
+    const windowN = Number.isFinite(this._config.dod_sessions_window)
+      ? Math.max(1, Math.min(200, this._config.dod_sessions_window as number))
+      : 30;
+
+    const soc = this._getAnalyticsSoc();
+    const discharging = (a as number) <= -Math.abs(minI);
+
+    if (discharging) {
+      this._dischargeActiveMs += dt;
+      if (this._dischargeSession === null) {
+        if (soc !== null && Number.isFinite(soc)) {
+          this._dischargeSession = { startTs: now, startSoc: soc, lastSoc: soc };
+        }
+      } else {
+        if (soc !== null && Number.isFinite(soc)) this._dischargeSession.lastSoc = soc;
+      }
+    } else {
+      // End session
+      if (this._dischargeSession && this._dischargeActiveMs >= minSessionSeconds * 1000) {
+        const start = this._dischargeSession.startSoc;
+        const end = this._dischargeSession.lastSoc;
+        if (Number.isFinite(start) && Number.isFinite(end) && start > end) {
+          const dod = Math.max(0, Math.min(100, start - end));
+          if (dod > 0.1) {
+            this._dodSessions = [...this._dodSessions, dod].slice(-windowN);
+          }
+        }
+      }
+      this._dischargeSession = null;
+      this._dischargeActiveMs = 0;
+    }
+
+    // Persist occasionally
+    if (now % 10_000 < dt) {
+      this._persistAnalytics();
+    }
   }
 
   public disconnectedCallback(): void {
@@ -79,6 +232,10 @@ export class JkBmsReactorCard extends LitElement {
     if (this._copyHintTimer) {
       window.clearTimeout(this._copyHintTimer);
       this._copyHintTimer = undefined;
+    }
+
+    if (this._analyticsLoaded) {
+      this._persistAnalytics();
     }
   }
 
@@ -397,6 +554,7 @@ export class JkBmsReactorCard extends LitElement {
     };
 
     pushEntity(this._config.mos_temp, packState.mosTemp ?? null);
+      this._updateAnalytics(packState);
     for (const entityId of this._config.temp_sensors ?? []) {
       if (!entityId) continue;
       const raw = this.hass.states[entityId]?.state ?? null;
@@ -715,6 +873,89 @@ export class JkBmsReactorCard extends LitElement {
       })()
       : null;
 
+    // -------- Battery analytics --------
+    const chargeTotalId = this._firstExistingEntityId([
+      this._config.analytics_charge_energy_total_kwh,
+      'sensor.main_mainbms_charge_energy_total_kwh',
+    ]);
+    const dischargeTotalId = this._firstExistingEntityId([
+      this._config.analytics_discharge_energy_total_kwh,
+      'sensor.main_mainbms_discharge_energy_total_kwh',
+    ]);
+    const cycleCountId = this._firstExistingEntityId([
+      this._config.analytics_cycle_count,
+      'sensor.main_mainbms_cycle_count',
+    ]);
+    const capacityAhId = this._firstExistingEntityId([
+      this._config.analytics_capacity_ah,
+      'sensor.main_mainbns_capacity_ah',
+    ]);
+
+    const chargeTotalKwh = chargeTotalId ? getNumericValue(this.hass, chargeTotalId) : null;
+    const dischargeTotalKwh = dischargeTotalId ? getNumericValue(this.hass, dischargeTotalId) : null;
+    const cycleCountDirect = cycleCountId ? getNumericValue(this.hass, cycleCountId) : null;
+
+    const lifetimeDischargeKwh = dischargeTotalKwh ?? (this._analyticsDischargeKwh || null);
+    const lifetimeChargeKwh = chargeTotalKwh ?? (this._analyticsChargeKwh || null);
+
+    const nominalCapacityAh = (() => {
+      if (Number.isFinite(this._config.nominal_capacity_ah)) return this._config.nominal_capacity_ah as number;
+      const fromEntity = capacityAhId ? getNumericValue(this.hass, capacityAhId) : null;
+      if (fromEntity !== null && Number.isFinite(fromEntity) && fromEntity > 0) return fromEntity;
+      return 314;
+    })();
+
+    const nominalVoltageV = Number.isFinite(this._config.nominal_voltage_v)
+      ? (this._config.nominal_voltage_v as number)
+      : 51.2;
+
+    const nominalPackKwh = (nominalCapacityAh > 0 && nominalVoltageV > 0)
+      ? (nominalCapacityAh * nominalVoltageV) / 1000
+      : null;
+
+    const equivalentCycles = (cycleCountDirect !== null && Number.isFinite(cycleCountDirect))
+      ? cycleCountDirect
+      : (lifetimeDischargeKwh !== null && nominalPackKwh !== null && nominalPackKwh > 0)
+        ? (lifetimeDischargeKwh / nominalPackKwh)
+        : null;
+
+    const measuredCapacityAhId = this._firstExistingEntityId([
+      this._config.measured_capacity_ah,
+    ]);
+    const measuredCapacityAh = measuredCapacityAhId ? getNumericValue(this.hass, measuredCapacityAhId) : null;
+    const sohPct = (measuredCapacityAh !== null && Number.isFinite(measuredCapacityAh) && nominalCapacityAh > 0)
+      ? (measuredCapacityAh / nominalCapacityAh) * 100
+      : null;
+
+    const avgDodPct = this._dodSessions.length
+      ? this._dodSessions.reduce((sum, x) => sum + x, 0) / this._dodSessions.length
+      : null;
+
+    const lifetimeTitle = dischargeTotalId
+      ? `Direct: ${dischargeTotalId}`
+      : 'Derived: integrated discharge power (local)';
+    const cyclesTitle = cycleCountId
+      ? `Direct: ${cycleCountId}`
+      : (lifetimeDischargeKwh !== null && nominalPackKwh !== null)
+        ? `Derived: discharge_kWh / nominal_pack_kWh (${formatNumber(nominalPackKwh, 2)} kWh)`
+        : 'Derived: needs lifetime discharge kWh and nominal pack kWh';
+    const dodTitle = this._dodSessions.length
+      ? `Derived: rolling avg over ${this._dodSessions.length} discharge sessions`
+      : 'Derived: needs SOC + discharge sessions';
+    const sohTitle = measuredCapacityAhId
+      ? `Derived: ${measuredCapacityAhId} / nominal_capacity_ah`
+      : 'Derived: needs measured capacity Ah entity';
+
+    const showAnalytics =
+      chargeTotalId !== null ||
+      dischargeTotalId !== null ||
+      cycleCountId !== null ||
+      capacityAhId !== null ||
+      measuredCapacityAhId !== null ||
+      (this._analyticsChargeKwh > 0) ||
+      (this._analyticsDischargeKwh > 0) ||
+      this._dodSessions.length > 0;
+
     return html`
       <div class="flow-section">
         <!-- Charger Node -->
@@ -827,6 +1068,12 @@ export class JkBmsReactorCard extends LitElement {
           <div class="stat-label">Voltage</div>
           <div class="stat-value">${formatNumber(packState.voltage, 2)} V</div>
         </div>
+
+        <div class="stat-panel stat-avg-cell" title="Average of all cell voltages">
+          <div class="stat-label">Avg Cell</div>
+          <div class="stat-value">${avgCellV !== null ? `${formatNumber(avgCellV, 3)} V` : '—'}</div>
+        </div>
+
         <div class="stat-panel stat-current ${current > 0.5 ? 'flow-in' : current < -0.5 ? 'flow-out' : ''}">
           <svg class="stat-sparkline-svg" viewBox="0 0 100 30" preserveAspectRatio="none" aria-hidden="true">
             <polyline class="sparkline current" points="${this._sparklinePoints(this._history.current)}"></polyline>
@@ -925,6 +1172,37 @@ export class JkBmsReactorCard extends LitElement {
               <div class="stat-value">${formatNumber(t.temp ?? null, 1)} °C</div>
             </div>
           `)}
+        </div>
+      ` : ''}
+
+      ${showAnalytics ? html`
+        <div class="analysis-section">
+          <div class="analysis-title">Battery analytics</div>
+          <div class="analysis-grid">
+            <div class="stat-panel" title="${lifetimeTitle}">
+              <div class="stat-label">Lifetime discharge</div>
+              <div class="stat-value">${lifetimeDischargeKwh !== null ? `${formatNumber(lifetimeDischargeKwh, 1)} kWh` : '—'}</div>
+            </div>
+            <div class="stat-panel" title="${cyclesTitle}">
+              <div class="stat-label">Eq cycles</div>
+              <div class="stat-value">${equivalentCycles !== null ? formatNumber(equivalentCycles, 1) : '—'}</div>
+            </div>
+            <div class="stat-panel" title="${dodTitle}">
+              <div class="stat-label">Avg DoD</div>
+              <div class="stat-value">${avgDodPct !== null ? `${formatNumber(avgDodPct, 0)}%` : '—'}</div>
+            </div>
+            <div class="stat-panel" title="${sohTitle}">
+              <div class="stat-label">Est SOH</div>
+              <div class="stat-value">${sohPct !== null ? `${formatNumber(sohPct, 0)}%` : '—'}</div>
+            </div>
+          </div>
+          ${(lifetimeChargeKwh !== null || lifetimeDischargeKwh !== null) ? html`
+            <div class="analysis-subtitle">
+              ${lifetimeChargeKwh !== null ? html`Charge: ${formatNumber(lifetimeChargeKwh, 1)} kWh` : ''}
+              ${(lifetimeChargeKwh !== null && lifetimeDischargeKwh !== null) ? html` · ` : ''}
+              ${lifetimeDischargeKwh !== null ? html`Discharge: ${formatNumber(lifetimeDischargeKwh, 1)} kWh` : ''}
+            </div>
+          ` : ''}
         </div>
       ` : ''}
     `;

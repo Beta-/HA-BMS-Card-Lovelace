@@ -62,6 +62,26 @@ export interface JkBmsReactorCardConfig {
     capacity_remaining?: string;
     capacity_total_ah?: number;
 
+    // Battery analytics (optional)
+    // Preferred direct sensors (if present):
+    // - sensor.main_mainbms_charge_energy_total_kwh
+    // - sensor.main_mainbms_discharge_energy_total_kwh
+    // - sensor.main_mainbms_cycle_count
+    // - sensor.main_mainbns_capacity_ah (nominal/measured capacity)
+    // If missing, the card derives values locally where possible.
+    analytics_charge_energy_total_kwh?: string;
+    analytics_discharge_energy_total_kwh?: string;
+    analytics_cycle_count?: string;
+    analytics_capacity_ah?: string;
+    analytics_soc?: string; // override SOC entity for analytics sessions
+    measured_capacity_ah?: string; // if present, used to estimate SOH
+
+    nominal_capacity_ah?: number; // default 314
+    nominal_voltage_v?: number;   // default 51.2 (16S LFP)
+    min_current_for_session_a?: number; // default 2A (discharge only)
+    min_session_seconds?: number; // default 120s
+    dod_sessions_window?: number; // default 30
+
     // Optional energy estimate under SOC
     // If not provided, total kWh can be derived from capacity_total_ah and pack_voltage_max.
     // If per-cell UVP/SOC100 voltages are not provided, they can be derived from pack_voltage_min/max and cell count.
