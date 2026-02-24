@@ -629,9 +629,7 @@ function getBalancingCells(hass, config, cellVoltages, current, delta, balanceCu
   if (balancingEntity && !isEntityOn(hass, balancingEntity)) {
     return cellVoltages.map(() => ({ isBalancing: false, direction: null }));
   }
-  if (!balanceCurrent || Math.abs(balanceCurrent) < 0.01) {
-    return cellVoltages.map(() => ({ isBalancing: false, direction: null }));
-  }
+  const hasDirection = balanceCurrent !== null && balanceCurrent !== void 0 && Math.abs(balanceCurrent) >= 1e-3;
   const minVoltage = Math.min(...cellVoltages);
   const maxVoltage = Math.max(...cellVoltages);
   const voltageDelta = maxVoltage - minVoltage;
@@ -642,6 +640,9 @@ function getBalancingCells(hass, config, cellVoltages, current, delta, balanceCu
     const voltageDeviation = voltage - minVoltage;
     const isHigh = voltageDeviation > voltageDelta * 0.7;
     const isLow = voltageDeviation < voltageDelta * 0.3;
+    if (!hasDirection) {
+      return { isBalancing: isHigh, direction: null };
+    }
     if (balanceCurrent > 0 && isHigh) {
       return { isBalancing: true, direction: "discharging" };
     } else if (balanceCurrent < 0 && isLow) {
@@ -962,27 +963,30 @@ const styles = i$3`
   }
 
   .delta-minmax-panel {
-    padding: 8px;
+    padding: 10px 8px;
   }
 
   .delta-minmax-container {
     position: relative;
     z-index: 1;
     display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 2px;
+    align-items: stretch;
+    justify-content: space-between;
+    gap: 8px;
   }
 
-  .delta-row {
+  .delta-left {
     display: flex;
+    flex-direction: column;
     align-items: center;
-    gap: 6px;
-    font-size: 0.95em;
+    justify-content: center;
+    gap: 4px;
+    flex: 1;
+    min-width: 0;
   }
 
   .delta-label {
-    font-size: 0.85em;
+    font-size: 0.75em;
     color: var(--secondary-text-color);
     font-weight: bold;
   }
@@ -990,31 +994,73 @@ const styles = i$3`
   .delta-value {
     font-weight: bold;
     color: var(--primary-text-color);
+    font-size: 1.1em;
   }
 
-  .delta-separator {
+  .delta-divider {
     color: var(--secondary-text-color);
-    opacity: 0.5;
+    opacity: 0.3;
+    font-size: 1.2em;
+    margin: 0 2px;
+    display: flex;
+    align-items: center;
+  }
+
+  .delta-right {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 2px;
+    width: 80px;
+    flex: 0 0 auto;
   }
 
   .max-value {
     font-weight: bold;
     color: #51cf66;
-    font-size: 1em;
+    font-size: 0.9em;
   }
 
-  .min-row {
-    display: flex;
-    justify-content: center;
-    padding-top: 2px;
-    border-top: 1px solid var(--divider-color);
+  .minmax-divider {
     width: 100%;
+    height: 1px;
+    background: var(--divider-color);
+    opacity: 0.6;
+    margin: 2px 0;
   }
 
   .min-value {
     font-weight: bold;
     color: #ff6b6b;
-    font-size: 1em;
+    font-size: 0.9em;
+  }
+
+  .cell.balancing {
+    border-color: var(--balancing-color);
+    animation: cell-balance-pulse 2s ease-in-out infinite;
+    box-shadow: 0 0 15px var(--balancing-color);
+    position: relative;
+  }
+
+  .cell.balancing::before {
+    content: '';
+    position: absolute;
+    inset: -4px;
+    border-radius: 14px;
+    border: 2px solid var(--balancing-color);
+    opacity: 0.5;
+    animation: balance-ring-pulse 2s ease-in-out infinite;
+  }
+
+  .cell.balancing::after {
+    content: '';
+    position: absolute;
+    inset: -8px;
+    border-radius: 16px;
+    border: 1px solid var(--balancing-color);
+    opacity: 0.3;
+    animation: balance-ring-pulse 2s ease-in-out infinite 0.5s;
   }
 
   /* Reactor Grid - Cell Display */
@@ -1411,6 +1457,12 @@ class JkBmsReactorCard extends i {
     const power = Math.abs(voltage * current);
     const chargeCurrent = isChargingFlow ? Math.abs(current) : 0;
     const dischargeCurrent = isDischargingFlow ? Math.abs(current) : 0;
+    const dotRadiusForPower = (watts) => {
+      const scaled = 3 + Math.min(5, Math.log10(watts + 1) * 1.8);
+      return Number(scaled.toFixed(2));
+    };
+    const chargeDotSize = isChargingFlow ? dotRadiusForPower(power) : 3;
+    const dischargeDotSize = isDischargingFlow ? dotRadiusForPower(power) : 3;
     const circumference = 283;
     const progress = circumference - soc / 100 * circumference;
     return b`
@@ -1472,13 +1524,13 @@ class JkBmsReactorCard extends i {
           <line x1="80" y1="90" x2="150" y2="90" 
                 class="flow-line ${isChargingFlow ? "active-charge" : "inactive"}" />
           ${isChargingFlow ? w`
-            <circle class="flow-dot dot-1" r="3" fill="var(--solar-color)">
+            <circle class="flow-dot dot-1" r="${chargeDotSize}" fill="var(--solar-color)">
               <animateMotion dur="2s" repeatCount="indefinite" path="M 80,90 L 150,90" />
             </circle>
-            <circle class="flow-dot dot-2" r="3" fill="var(--solar-color)">
+            <circle class="flow-dot dot-2" r="${chargeDotSize}" fill="var(--solar-color)">
               <animateMotion dur="2s" repeatCount="indefinite" begin="0.5s" path="M 80,90 L 150,90" />
             </circle>
-            <circle class="flow-dot dot-3" r="3" fill="var(--solar-color)">
+            <circle class="flow-dot dot-3" r="${chargeDotSize}" fill="var(--solar-color)">
               <animateMotion dur="2s" repeatCount="indefinite" begin="1s" path="M 80,90 L 150,90" />
             </circle>
           ` : ""}
@@ -1487,13 +1539,13 @@ class JkBmsReactorCard extends i {
           <line x1="250" y1="90" x2="320" y2="90" 
                 class="flow-line ${isDischargingFlow ? "active-discharge" : "inactive"}" />
           ${isDischargingFlow ? w`
-            <circle class="flow-dot dot-1" r="3" fill="var(--discharge-color)">
+            <circle class="flow-dot dot-1" r="${dischargeDotSize}" fill="var(--discharge-color)">
               <animateMotion dur="2s" repeatCount="indefinite" path="M 250,90 L 320,90" />
             </circle>
-            <circle class="flow-dot dot-2" r="3" fill="var(--discharge-color)">
+            <circle class="flow-dot dot-2" r="${dischargeDotSize}" fill="var(--discharge-color)">
               <animateMotion dur="2s" repeatCount="indefinite" begin="0.5s" path="M 250,90 L 320,90" />
             </circle>
-            <circle class="flow-dot dot-3" r="3" fill="var(--discharge-color)">
+            <circle class="flow-dot dot-3" r="${dischargeDotSize}" fill="var(--discharge-color)">
               <animateMotion dur="2s" repeatCount="indefinite" begin="1s" path="M 250,90 L 320,90" />
             </circle>
           ` : ""}
@@ -1520,14 +1572,15 @@ class JkBmsReactorCard extends i {
         <div class="stat-panel delta-minmax-panel">
           <div class="stat-sparkline"></div>
           <div class="delta-minmax-container">
-            <div class="delta-row">
-              <span class="delta-label">Δ</span>
-              <span class="delta-value">${formatNumber(packState.delta, 3)}V</span>
-              <span class="delta-separator">|</span>
-              <span class="max-value">${formatNumber(packState.maxCell, 3)}V</span>
+            <div class="delta-left">
+              <div class="delta-label">Delta</div>
+              <div class="delta-value">${formatNumber(packState.delta, 3)}V</div>
             </div>
-            <div class="min-row">
-              <span class="min-value">${formatNumber(packState.minCell, 3)}V</span>
+            <div class="delta-divider">|</div>
+            <div class="delta-right">
+              <div class="max-value">${formatNumber(packState.maxCell, 3)}V</div>
+              <div class="minmax-divider"></div>
+              <div class="min-value">${formatNumber(packState.minCell, 3)}V</div>
             </div>
           </div>
         </div>
@@ -1547,7 +1600,7 @@ class JkBmsReactorCard extends i {
         packState.maxCell
       );
       return b`
-              <div class="cell ${cellClass} ${cell.isBalancing ? `balancing balancing-${cell.balanceDirection}` : ""}">
+              <div class="cell ${cellClass} ${cell.isBalancing ? `balancing${cell.balanceDirection ? ` balancing-${cell.balanceDirection}` : ""}` : ""}">
                 ${showLabels && !compact ? b`<div class="cell-label">Cell ${index + 1}</div>` : ""}
                 <div class="cell-voltage">
                   ${compact ? formatNumber(cell.voltage, 2) : formatNumber(cell.voltage, 3)}

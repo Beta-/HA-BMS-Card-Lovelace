@@ -81,10 +81,9 @@ export function getBalancingCells(
         return cellVoltages.map(() => ({ isBalancing: false, direction: null }));
     }
 
-    // Not balancing if no balance current or very small
-    if (!balanceCurrent || Math.abs(balanceCurrent) < 0.01) {
-        return cellVoltages.map(() => ({ isBalancing: false, direction: null }));
-    }
+    const hasDirection = balanceCurrent !== null
+        && balanceCurrent !== undefined
+        && Math.abs(balanceCurrent) >= 0.001;
 
     const minVoltage = Math.min(...cellVoltages);
     const maxVoltage = Math.max(...cellVoltages);
@@ -95,16 +94,22 @@ export function getBalancingCells(
         return cellVoltages.map(() => ({ isBalancing: false, direction: null }));
     }
 
-    // Determine which cells are being balanced based on current direction
+    // Determine which cells are being balanced based on current direction.
+    // If we don't have a usable balance current, fall back to generic balancing highlighting.
     return cellVoltages.map(voltage => {
         const voltageDeviation = voltage - minVoltage;
         const isHigh = voltageDeviation > (voltageDelta * 0.7); // Top 30% voltage range
         const isLow = voltageDeviation < (voltageDelta * 0.3);  // Bottom 30% voltage range
 
-        if (balanceCurrent > 0 && isHigh) {
+        if (!hasDirection) {
+            // Unknown direction: show the cells most likely being bled (high cells)
+            return { isBalancing: isHigh, direction: null };
+        }
+
+        if ((balanceCurrent as number) > 0 && isHigh) {
             // Positive current: high cells are discharging
             return { isBalancing: true, direction: 'discharging' as const };
-        } else if (balanceCurrent < 0 && isLow) {
+        } else if ((balanceCurrent as number) < 0 && isLow) {
             // Negative current: low cells are charging
             return { isBalancing: true, direction: 'charging' as const };
         }

@@ -129,6 +129,14 @@ export class JkBmsReactorCard extends LitElement {
     const chargeCurrent = isChargingFlow ? Math.abs(current) : 0;
     const dischargeCurrent = isDischargingFlow ? Math.abs(current) : 0;
 
+    const dotRadiusForPower = (watts: number) => {
+      const scaled = 3 + Math.min(5, Math.log10(watts + 1) * 1.8);
+      return Number(scaled.toFixed(2));
+    };
+
+    const chargeDotSize = isChargingFlow ? dotRadiusForPower(power) : 3;
+    const dischargeDotSize = isDischargingFlow ? dotRadiusForPower(power) : 3;
+
     // Calculate SOC progress (283 is circumference of 45px radius circle)
     const circumference = 283;
     const progress = circumference - (soc / 100) * circumference;
@@ -194,13 +202,13 @@ export class JkBmsReactorCard extends LitElement {
           <line x1="80" y1="90" x2="150" y2="90" 
                 class="flow-line ${isChargingFlow ? 'active-charge' : 'inactive'}" />
           ${isChargingFlow ? svg`
-            <circle class="flow-dot dot-1" r="3" fill="var(--solar-color)">
+            <circle class="flow-dot dot-1" r="${chargeDotSize}" fill="var(--solar-color)">
               <animateMotion dur="2s" repeatCount="indefinite" path="M 80,90 L 150,90" />
             </circle>
-            <circle class="flow-dot dot-2" r="3" fill="var(--solar-color)">
+            <circle class="flow-dot dot-2" r="${chargeDotSize}" fill="var(--solar-color)">
               <animateMotion dur="2s" repeatCount="indefinite" begin="0.5s" path="M 80,90 L 150,90" />
             </circle>
-            <circle class="flow-dot dot-3" r="3" fill="var(--solar-color)">
+            <circle class="flow-dot dot-3" r="${chargeDotSize}" fill="var(--solar-color)">
               <animateMotion dur="2s" repeatCount="indefinite" begin="1s" path="M 80,90 L 150,90" />
             </circle>
           ` : ''}
@@ -209,13 +217,13 @@ export class JkBmsReactorCard extends LitElement {
           <line x1="250" y1="90" x2="320" y2="90" 
                 class="flow-line ${isDischargingFlow ? 'active-discharge' : 'inactive'}" />
           ${isDischargingFlow ? svg`
-            <circle class="flow-dot dot-1" r="3" fill="var(--discharge-color)">
+            <circle class="flow-dot dot-1" r="${dischargeDotSize}" fill="var(--discharge-color)">
               <animateMotion dur="2s" repeatCount="indefinite" path="M 250,90 L 320,90" />
             </circle>
-            <circle class="flow-dot dot-2" r="3" fill="var(--discharge-color)">
+            <circle class="flow-dot dot-2" r="${dischargeDotSize}" fill="var(--discharge-color)">
               <animateMotion dur="2s" repeatCount="indefinite" begin="0.5s" path="M 250,90 L 320,90" />
             </circle>
-            <circle class="flow-dot dot-3" r="3" fill="var(--discharge-color)">
+            <circle class="flow-dot dot-3" r="${dischargeDotSize}" fill="var(--discharge-color)">
               <animateMotion dur="2s" repeatCount="indefinite" begin="1s" path="M 250,90 L 320,90" />
             </circle>
           ` : ''}
@@ -242,14 +250,15 @@ export class JkBmsReactorCard extends LitElement {
         <div class="stat-panel delta-minmax-panel">
           <div class="stat-sparkline"></div>
           <div class="delta-minmax-container">
-            <div class="delta-row">
-              <span class="delta-label">Δ</span>
-              <span class="delta-value">${formatNumber(packState.delta, 3)}V</span>
-              <span class="delta-separator">|</span>
-              <span class="max-value">${formatNumber(packState.maxCell, 3)}V</span>
+            <div class="delta-left">
+              <div class="delta-label">Delta</div>
+              <div class="delta-value">${formatNumber(packState.delta, 3)}V</div>
             </div>
-            <div class="min-row">
-              <span class="min-value">${formatNumber(packState.minCell, 3)}V</span>
+            <div class="delta-divider">|</div>
+            <div class="delta-right">
+              <div class="max-value">${formatNumber(packState.maxCell, 3)}V</div>
+              <div class="minmax-divider"></div>
+              <div class="min-value">${formatNumber(packState.minCell, 3)}V</div>
             </div>
           </div>
         </div>
@@ -272,7 +281,7 @@ export class JkBmsReactorCard extends LitElement {
       );
 
       return html`
-              <div class="cell ${cellClass} ${cell.isBalancing ? `balancing balancing-${cell.balanceDirection}` : ''}">
+              <div class="cell ${cellClass} ${cell.isBalancing ? `balancing${cell.balanceDirection ? ` balancing-${cell.balanceDirection}` : ''}` : ''}">
                 ${showLabels && !compact ? html`<div class="cell-label">Cell ${index + 1}</div>` : ''}
                 <div class="cell-voltage">
                   ${compact ? formatNumber(cell.voltage, 2) : formatNumber(cell.voltage, 3)}
