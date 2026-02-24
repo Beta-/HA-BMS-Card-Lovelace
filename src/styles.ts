@@ -571,20 +571,21 @@ export const styles = css`
   .cell-flow-path {
     fill: none;
     stroke: rgba(255, 255, 255, 0.18);
-    stroke-width: 2;
+    stroke-width: 1;
     stroke-linecap: round;
     stroke-linejoin: round;
     opacity: 0;
+    shape-rendering: geometricPrecision;
   }
 
   .cell-flow-path.active {
     opacity: 1;
-    stroke-width: 3;
+    stroke: rgba(255, 255, 255, 0.22);
+    stroke-width: 1.5;
   }
 
   .cell-flow-dot {
-    opacity: 0.9;
-    filter: drop-shadow(0 0 3px rgba(255, 255, 255, 0.25));
+    filter: drop-shadow(0 0 6px rgba(255, 255, 255, 0.28));
   }
 
 

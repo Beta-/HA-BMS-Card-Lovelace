@@ -8,6 +8,11 @@ export class JkBmsReactorCard extends LitElement {
   @property({ attribute: false }) public hass!: HomeAssistant;
   @state() private _config!: JkBmsReactorCardConfig;
 
+  @state() private _cellFlowDotRx = 4;
+  @state() private _cellFlowDotRy = 4;
+
+  private _resizeObserver?: ResizeObserver;
+
   private _uid = Math.random().toString(36).slice(2, 9);
 
   private _history = {
@@ -26,6 +31,47 @@ export class JkBmsReactorCard extends LitElement {
 
   static get styles() {
     return styles;
+  }
+
+  protected firstUpdated() {
+    this._resizeObserver = new ResizeObserver(() => {
+      this._updateCellFlowDotRadii();
+    });
+    this._resizeObserver.observe(this);
+    this._updateCellFlowDotRadii();
+  }
+
+  public disconnectedCallback(): void {
+    super.disconnectedCallback();
+    this._resizeObserver?.disconnect();
+    this._resizeObserver = undefined;
+  }
+
+  private _updateCellFlowDotRadii(desiredPxRadius = 4) {
+    const el = this.renderRoot?.querySelector('.cell-flow-svg') as SVGElement | null;
+    if (!el) return;
+
+    const rect = el.getBoundingClientRect();
+    if (!rect.width || !rect.height) return;
+
+    const vb = el.getAttribute('viewBox') ?? '';
+    const parts = vb.split(/\s+/).map(Number);
+    if (parts.length !== 4 || parts.some(v => !Number.isFinite(v))) return;
+    const vbW = parts[2];
+    const vbH = parts[3];
+    if (vbW <= 0 || vbH <= 0) return;
+
+    const sx = rect.width / vbW;
+    const sy = rect.height / vbH;
+    if (!Number.isFinite(sx) || !Number.isFinite(sy) || sx <= 0 || sy <= 0) return;
+
+    const rx = Math.max(1.5, Math.min(12, desiredPxRadius / sx));
+    const ry = Math.max(1.5, Math.min(12, desiredPxRadius / sy));
+
+    if (Math.abs(rx - this._cellFlowDotRx) > 0.05 || Math.abs(ry - this._cellFlowDotRy) > 0.05) {
+      this._cellFlowDotRx = rx;
+      this._cellFlowDotRy = ry;
+    }
   }
 
   public setConfig(config: JkBmsReactorCardConfig): void {
@@ -710,20 +756,29 @@ export class JkBmsReactorCard extends LitElement {
         <div class="reactor-grid ${compact ? 'compact' : ''}">
           <div class="cell-flow-column ${showConnector ? 'active' : ''} ${flowDirClass}" style="grid-row: 1 / span ${Math.max(1, rows)};">
             <svg class="cell-flow-svg" viewBox="0 0 100 ${Math.max(1, rows) * 10}" preserveAspectRatio="none" aria-hidden="true">
+              <defs>
+                <linearGradient
+                  id="cellFlowGrad-${this._uid}"
+                  gradientUnits="userSpaceOnUse"
+                  x1="${xStart}"
+                  y1="${yStart}"
+                  x2="${xEnd}"
+                  y2="${yEnd}"
+                >
+                  <stop offset="0%" stop-color="var(--balance-discharge-color)"></stop>
+                  <stop offset="100%" stop-color="var(--balance-charge-color)"></stop>
+                </linearGradient>
+              </defs>
               <path
                 id="cellFlowPath-${this._uid}"
                 class="cell-flow-path ${showConnector ? 'active' : ''}"
                 d="${connectorPath()}"
+                vector-effect="non-scaling-stroke"
               ></path>
               ${showConnector ? svg`
-                <circle class="cell-flow-dot" r="3.2" fill="var(--balance-discharge-color)">
+                <ellipse class="cell-flow-dot" rx="${this._cellFlowDotRx}" ry="${this._cellFlowDotRy}" fill="url(#cellFlowGrad-${this._uid})">
                   <animateMotion dur="1.8s" repeatCount="indefinite" path="${connectorPath()}" />
-                  <animate attributeName="opacity" dur="1.8s" repeatCount="indefinite" values="1;0" />
-                </circle>
-                <circle class="cell-flow-dot" r="3.2" fill="var(--balance-charge-color)">
-                  <animateMotion dur="1.8s" repeatCount="indefinite" path="${connectorPath()}" />
-                  <animate attributeName="opacity" dur="1.8s" repeatCount="indefinite" values="0;1" />
-                </circle>
+                </ellipse>
               ` : ''}
             </svg>
           </div>

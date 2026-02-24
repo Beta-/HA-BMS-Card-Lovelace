@@ -1284,20 +1284,21 @@ const styles = i$3`
   .cell-flow-path {
     fill: none;
     stroke: rgba(255, 255, 255, 0.18);
-    stroke-width: 2;
+    stroke-width: 1;
     stroke-linecap: round;
     stroke-linejoin: round;
     opacity: 0;
+    shape-rendering: geometricPrecision;
   }
 
   .cell-flow-path.active {
     opacity: 1;
-    stroke-width: 3;
+    stroke: rgba(255, 255, 255, 0.22);
+    stroke-width: 1.5;
   }
 
   .cell-flow-dot {
-    opacity: 0.9;
-    filter: drop-shadow(0 0 3px rgba(255, 255, 255, 0.25));
+    filter: drop-shadow(0 0 6px rgba(255, 255, 255, 0.28));
   }
 
 
@@ -1618,6 +1619,8 @@ var __decorateClass$1 = (decorators, target, key, kind) => {
 class JkBmsReactorCard extends i {
   constructor() {
     super(...arguments);
+    this._cellFlowDotRx = 4;
+    this._cellFlowDotRy = 4;
     this._uid = Math.random().toString(36).slice(2, 9);
     this._history = {
       voltage: [],
@@ -1633,6 +1636,41 @@ class JkBmsReactorCard extends i {
   }
   static get styles() {
     return styles;
+  }
+  firstUpdated() {
+    this._resizeObserver = new ResizeObserver(() => {
+      this._updateCellFlowDotRadii();
+    });
+    this._resizeObserver.observe(this);
+    this._updateCellFlowDotRadii();
+  }
+  disconnectedCallback() {
+    var _a2;
+    super.disconnectedCallback();
+    (_a2 = this._resizeObserver) == null ? void 0 : _a2.disconnect();
+    this._resizeObserver = void 0;
+  }
+  _updateCellFlowDotRadii(desiredPxRadius = 4) {
+    var _a2;
+    const el = (_a2 = this.renderRoot) == null ? void 0 : _a2.querySelector(".cell-flow-svg");
+    if (!el) return;
+    const rect = el.getBoundingClientRect();
+    if (!rect.width || !rect.height) return;
+    const vb = el.getAttribute("viewBox") ?? "";
+    const parts = vb.split(/\s+/).map(Number);
+    if (parts.length !== 4 || parts.some((v2) => !Number.isFinite(v2))) return;
+    const vbW = parts[2];
+    const vbH = parts[3];
+    if (vbW <= 0 || vbH <= 0) return;
+    const sx = rect.width / vbW;
+    const sy = rect.height / vbH;
+    if (!Number.isFinite(sx) || !Number.isFinite(sy) || sx <= 0 || sy <= 0) return;
+    const rx = Math.max(1.5, Math.min(12, desiredPxRadius / sx));
+    const ry = Math.max(1.5, Math.min(12, desiredPxRadius / sy));
+    if (Math.abs(rx - this._cellFlowDotRx) > 0.05 || Math.abs(ry - this._cellFlowDotRy) > 0.05) {
+      this._cellFlowDotRx = rx;
+      this._cellFlowDotRy = ry;
+    }
   }
   setConfig(config) {
     if (!config) {
@@ -2204,20 +2242,29 @@ class JkBmsReactorCard extends i {
         <div class="reactor-grid ${compact ? "compact" : ""}">
           <div class="cell-flow-column ${showConnector ? "active" : ""} ${flowDirClass}" style="grid-row: 1 / span ${Math.max(1, rows)};">
             <svg class="cell-flow-svg" viewBox="0 0 100 ${Math.max(1, rows) * 10}" preserveAspectRatio="none" aria-hidden="true">
+              <defs>
+                <linearGradient
+                  id="cellFlowGrad-${this._uid}"
+                  gradientUnits="userSpaceOnUse"
+                  x1="${xStart}"
+                  y1="${yStart}"
+                  x2="${xEnd}"
+                  y2="${yEnd}"
+                >
+                  <stop offset="0%" stop-color="var(--balance-discharge-color)"></stop>
+                  <stop offset="100%" stop-color="var(--balance-charge-color)"></stop>
+                </linearGradient>
+              </defs>
               <path
                 id="cellFlowPath-${this._uid}"
                 class="cell-flow-path ${showConnector ? "active" : ""}"
                 d="${connectorPath()}"
+                vector-effect="non-scaling-stroke"
               ></path>
               ${showConnector ? w`
-                <circle class="cell-flow-dot" r="3.2" fill="var(--balance-discharge-color)">
+                <ellipse class="cell-flow-dot" rx="${this._cellFlowDotRx}" ry="${this._cellFlowDotRy}" fill="url(#cellFlowGrad-${this._uid})">
                   <animateMotion dur="1.8s" repeatCount="indefinite" path="${connectorPath()}" />
-                  <animate attributeName="opacity" dur="1.8s" repeatCount="indefinite" values="1;0" />
-                </circle>
-                <circle class="cell-flow-dot" r="3.2" fill="var(--balance-charge-color)">
-                  <animateMotion dur="1.8s" repeatCount="indefinite" path="${connectorPath()}" />
-                  <animate attributeName="opacity" dur="1.8s" repeatCount="indefinite" values="0;1" />
-                </circle>
+                </ellipse>
               ` : ""}
             </svg>
           </div>
@@ -2276,6 +2323,12 @@ __decorateClass$1([
 __decorateClass$1([
   r()
 ], JkBmsReactorCard.prototype, "_config");
+__decorateClass$1([
+  r()
+], JkBmsReactorCard.prototype, "_cellFlowDotRx");
+__decorateClass$1([
+  r()
+], JkBmsReactorCard.prototype, "_cellFlowDotRy");
 /**
  * @license
  * Copyright 2020 Google LLC
