@@ -264,6 +264,14 @@ export const styles = css`
     margin-top: 4px;
   }
 
+  .energy-text {
+    font-size: 0.78em;
+    color: var(--secondary-text-color);
+    margin-top: 4px;
+    opacity: 0.95;
+    text-align: center;
+  }
+
   /* SVG Flow Lines */
   .flow-svg {
     position: absolute;
@@ -415,6 +423,11 @@ export const styles = css`
     stroke: rgba(65, 205, 82, 0.45);
   }
 
+  .stat-panel.stat-delta .delta-label,
+  .stat-panel.stat-delta .delta-value {
+    color: rgba(65, 205, 82, 0.90);
+  }
+
   .stat-panel.stat-delta.delta-warn {
     box-shadow: 0 0 18px rgba(255, 211, 15, 0.18);
     border-color: rgba(255, 211, 15, 0.25);
@@ -424,6 +437,11 @@ export const styles = css`
   }
   .stat-panel.stat-delta.delta-warn .delta-sparkline-svg .sparkline.delta {
     stroke: rgba(255, 211, 15, 0.55);
+  }
+
+  .stat-panel.stat-delta.delta-warn .delta-label,
+  .stat-panel.stat-delta.delta-warn .delta-value {
+    color: rgba(255, 211, 15, 0.92);
   }
 
   .stat-panel.stat-delta.delta-alert {
@@ -437,6 +455,11 @@ export const styles = css`
     stroke: rgba(255, 146, 43, 0.60);
   }
 
+  .stat-panel.stat-delta.delta-alert .delta-label,
+  .stat-panel.stat-delta.delta-alert .delta-value {
+    color: rgba(255, 146, 43, 0.92);
+  }
+
   .stat-panel.stat-delta.delta-danger {
     border-color: rgba(255, 80, 80, 0.45);
     animation: delta-danger-pulse 1.4s ease-in-out infinite;
@@ -446,6 +469,60 @@ export const styles = css`
   }
   .stat-panel.stat-delta.delta-danger .delta-sparkline-svg .sparkline.delta {
     stroke: rgba(255, 80, 80, 0.70);
+  }
+
+  .stat-panel.stat-delta.delta-danger .delta-label,
+  .stat-panel.stat-delta.delta-danger .delta-value {
+    color: rgba(255, 80, 80, 0.95);
+  }
+
+  .stability-row {
+    margin-top: 6px;
+    font-size: 12px;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 10px;
+    border-radius: 999px;
+    border: 1px solid rgba(255, 255, 255, 0.10);
+    background: rgba(0, 0, 0, 0.14);
+    color: var(--secondary-text-color);
+    white-space: nowrap;
+  }
+
+  .stability-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: currentColor;
+    box-shadow: 0 0 10px currentColor;
+    opacity: 0.9;
+  }
+
+  .stability-stable {
+    color: rgba(65, 205, 82, 0.95);
+    border-color: rgba(65, 205, 82, 0.20);
+    background: rgba(65, 205, 82, 0.08);
+  }
+
+  .stability-moderate {
+    color: rgba(255, 211, 15, 0.95);
+    border-color: rgba(255, 211, 15, 0.22);
+    background: rgba(255, 211, 15, 0.08);
+  }
+
+  .stability-high {
+    color: rgba(255, 80, 80, 0.95);
+    border-color: rgba(255, 80, 80, 0.25);
+    background: rgba(255, 80, 80, 0.08);
+  }
+
+  .knee-indicator {
+    margin-top: 6px;
+    font-size: 12px;
+    color: rgba(255, 146, 43, 0.92);
+    opacity: 0.95;
+    letter-spacing: 0.2px;
   }
 
   @keyframes delta-bg-shift {
@@ -464,10 +541,16 @@ export const styles = css`
 
   .temps-grid {
     display: grid;
-    grid-template-columns: repeat(2, 1fr);
+    grid-template-columns: repeat(4, minmax(0, 1fr));
     gap: 8px;
     margin-top: -8px;
     margin-bottom: 16px;
+  }
+
+  @media (max-width: 900px) {
+    .temps-grid {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
   }
 
   .delta-minmax-container {
@@ -707,6 +790,30 @@ export const styles = css`
     position: relative;
     transition: all 0.3s ease;
     overflow: hidden;
+  }
+
+  .reactor-grid.spread .cell {
+    background: var(--panel-bg);
+  }
+
+  .reactor-grid.spread .cell.thermal-green {
+    background: linear-gradient(135deg, rgba(65, 205, 82, 0.16), rgba(65, 205, 82, 0.06));
+    border-color: rgba(65, 205, 82, 0.32);
+  }
+
+  .reactor-grid.spread .cell.thermal-yellow {
+    background: linear-gradient(135deg, rgba(255, 211, 15, 0.16), rgba(255, 211, 15, 0.06));
+    border-color: rgba(255, 211, 15, 0.32);
+  }
+
+  .reactor-grid.spread .cell.thermal-orange {
+    background: linear-gradient(135deg, rgba(255, 146, 43, 0.18), rgba(255, 146, 43, 0.07));
+    border-color: rgba(255, 146, 43, 0.34);
+  }
+
+  .reactor-grid.spread .cell.thermal-red {
+    background: linear-gradient(135deg, rgba(255, 80, 80, 0.20), rgba(255, 80, 80, 0.08));
+    border-color: rgba(255, 80, 80, 0.38);
   }
 
   .cell-extreme {

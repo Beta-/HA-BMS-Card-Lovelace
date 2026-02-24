@@ -46,6 +46,9 @@ export interface JkBmsReactorCardConfig {
     show_cell_labels?: boolean;
     compact_cells?: boolean;
 
+    // Optional cell heatmap mode
+    cell_heatmap_mode?: 'normal' | 'spread';
+
     cell_columns?: number;
 
     // Cell ordering in the 2-column reactor grid
@@ -58,6 +61,14 @@ export interface JkBmsReactorCardConfig {
     // Optional capacity (Ah)
     capacity_remaining?: string;
     capacity_total_ah?: number;
+
+    // Optional energy estimate under SOC
+    energy_total_kwh?: number;
+    energy_uvp_cell_v?: number;
+    energy_soc100_cell_v?: number;
+
+    // Optional advanced indicator
+    show_knee_zone?: boolean;
 
     // Optional color overrides (CSS color strings)
     color_accent?: string;

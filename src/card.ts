@@ -11,10 +11,35 @@ export class JkBmsReactorCard extends LitElement {
   @state() private _cellFlowDotRx = 4;
   @state() private _cellFlowDotRy = 4;
 
+  @state() private _flowLineY = 90;
+
   private _resizeObserver?: ResizeObserver;
 
   @state() private _copyHint: string | null = null;
   private _copyHintTimer?: number;
+
+  private _lastCellFlow:
+    | {
+      d: string;
+      x1: number;
+      y1: number;
+      x2: number;
+      y2: number;
+      c1: string;
+      c2: string;
+    }
+    | null = null;
+  private _pendingCellFlow:
+    | {
+      d: string;
+      x1: number;
+      y1: number;
+      x2: number;
+      y2: number;
+      c1: string;
+      c2: string;
+    }
+    | null = null;
 
   private _uid = Math.random().toString(36).slice(2, 9);
 
@@ -39,9 +64,11 @@ export class JkBmsReactorCard extends LitElement {
   protected firstUpdated() {
     this._resizeObserver = new ResizeObserver(() => {
       this._updateCellFlowDotRadii();
+      this._updateFlowLineY();
     });
     this._resizeObserver.observe(this);
     this._updateCellFlowDotRadii();
+    this._updateFlowLineY();
   }
 
   public disconnectedCallback(): void {
@@ -166,12 +193,39 @@ export class JkBmsReactorCard extends LitElement {
     const sy = rect.height / vbH;
     if (!Number.isFinite(sx) || !Number.isFinite(sy) || sx <= 0 || sy <= 0) return;
 
-    const rx = Math.max(1.5, Math.min(12, desiredPxRadius / sx));
-    const ry = Math.max(1.5, Math.min(12, desiredPxRadius / sy));
+    // Allow large radii in SVG units so the on-screen dot can stay circular
+    // even when the connector column becomes very narrow (sx is tiny).
+    const rx = Math.max(0.5, Math.min(200, desiredPxRadius / sx));
+    const ry = Math.max(0.5, Math.min(200, desiredPxRadius / sy));
 
     if (Math.abs(rx - this._cellFlowDotRx) > 0.05 || Math.abs(ry - this._cellFlowDotRy) > 0.05) {
       this._cellFlowDotRx = rx;
       this._cellFlowDotRy = ry;
+    }
+  }
+
+  private _updateFlowLineY() {
+    const flow = this.renderRoot?.querySelector('.flow-section') as HTMLElement | null;
+    const svgEl = this.renderRoot?.querySelector('svg.flow-svg') as SVGSVGElement | null;
+    const chargeIcon = this.renderRoot?.querySelector('.flow-section .flow-node:first-of-type .icon-circle') as HTMLElement | null;
+    const loadIcon = this.renderRoot?.querySelector('.flow-section .flow-node:last-of-type .icon-circle') as HTMLElement | null;
+    const ring = this.renderRoot?.querySelector('.reactor-ring-container') as HTMLElement | null;
+
+    if (!flow || !svgEl || !chargeIcon || !loadIcon || !ring) return;
+
+    const flowRect = flow.getBoundingClientRect();
+    if (!flowRect.height) return;
+
+    const cy = (el: Element) => {
+      const r = el.getBoundingClientRect();
+      return (r.top + r.height / 2) - flowRect.top;
+    };
+
+    // Average keeps the line horizontal while aligning well.
+    const avgY = (cy(chargeIcon) + cy(ring) + cy(loadIcon)) / 3;
+    const y = Math.max(0, Math.min(180, (avgY / flowRect.height) * 180));
+    if (Number.isFinite(y) && Math.abs(y - this._flowLineY) > 0.4) {
+      this._flowLineY = y;
     }
   }
 
@@ -194,6 +248,8 @@ export class JkBmsReactorCard extends LitElement {
       show_cell_labels: config.show_cell_labels ?? true,
       compact_cells: config.compact_cells ?? false,
       cell_columns: config.cell_columns ?? 2,
+
+      cell_heatmap_mode: config.cell_heatmap_mode ?? 'normal',
       balance_threshold_v: config.balance_threshold_v ?? 0.01,
       charge_threshold_a: config.charge_threshold_a ?? 0.5,
       discharge_threshold_a: config.discharge_threshold_a ?? 0.5,
@@ -202,6 +258,12 @@ export class JkBmsReactorCard extends LitElement {
       pack_voltage_max: config.pack_voltage_max,
       capacity_remaining: config.capacity_remaining,
       capacity_total_ah: config.capacity_total_ah,
+
+      energy_total_kwh: config.energy_total_kwh,
+      energy_uvp_cell_v: config.energy_uvp_cell_v,
+      energy_soc100_cell_v: config.energy_soc100_cell_v,
+
+      show_knee_zone: config.show_knee_zone ?? false,
 
       cell_order_mode: config.cell_order_mode ?? 'linear',
 
@@ -289,6 +351,11 @@ export class JkBmsReactorCard extends LitElement {
     // Keep the balancing connector dot round even when the SVG appears later
     // (e.g. when balancing starts) or when layout changes.
     this._updateCellFlowDotRadii(4.5);
+    this._updateFlowLineY();
+
+    // Allow smooth transitions: keep the previous connector geometry/colors.
+    this._lastCellFlow = this._pendingCellFlow;
+    this._pendingCellFlow = null;
 
     if (!changedProperties.has('hass')) return;
     if (!this.hass || !this._config) return;
@@ -583,6 +650,30 @@ export class JkBmsReactorCard extends LitElement {
           : null)
         : null);
 
+    const avgCellV = packState.cells.length
+      ? packState.cells.reduce((sum, c) => sum + c.voltage, 0) / packState.cells.length
+      : (this._config.cells_count && Number.isFinite(this._config.cells_count)
+        ? voltage / (this._config.cells_count as number)
+        : null);
+
+    const canEnergy =
+      avgCellV !== null &&
+      this._config.energy_total_kwh !== undefined && Number.isFinite(this._config.energy_total_kwh) &&
+      this._config.energy_uvp_cell_v !== undefined && Number.isFinite(this._config.energy_uvp_cell_v) &&
+      this._config.energy_soc100_cell_v !== undefined && Number.isFinite(this._config.energy_soc100_cell_v) &&
+      (this._config.energy_soc100_cell_v as number) > (this._config.energy_uvp_cell_v as number);
+
+    const energyAvailableKwh = canEnergy
+      ? (() => {
+        const uvp = this._config.energy_uvp_cell_v as number;
+        const soc100 = this._config.energy_soc100_cell_v as number;
+        const total = this._config.energy_total_kwh as number;
+        const t = ((avgCellV as number) - uvp) / (soc100 - uvp);
+        const clamped = Math.max(0, Math.min(1, t));
+        return clamped * total;
+      })()
+      : null;
+
     return html`
       <div class="flow-section">
         <!-- Charger Node -->
@@ -592,11 +683,11 @@ export class JkBmsReactorCard extends LitElement {
             <ha-icon icon="mdi:power-plug-outline"></ha-icon>
           </div>
           <div class="node-label">Charge</div>
-          <div class="node-status">
-            <span class="${packState.isCharging ? 'status-on' : 'status-off'}">
-              ${packState.isCharging ? 'ON' : 'OFF'}
-            </span>
-          </div>
+          ${packState.isCharging ? html`
+            <div class="node-status">
+              <span class="status-on">ON</span>
+            </div>
+          ` : ''}
           ${chargeCurrent > 0 ? html`
             <div class="node-current">${formatNumber(chargeCurrent, 1)} A</div>
           ` : ''}
@@ -628,6 +719,9 @@ export class JkBmsReactorCard extends LitElement {
           ? html`${formatNumber(capacityLeftAh, 1)} Ah`
           : html`${formatNumber(voltage, 1)}V`}
             </div>
+            ${energyAvailableKwh !== null ? html`
+              <div class="energy-text">Energy Available: ${formatNumber(energyAvailableKwh, 1)} kWh</div>
+            ` : ''}
           </div>
         </div>
 
@@ -638,11 +732,11 @@ export class JkBmsReactorCard extends LitElement {
             <ha-icon icon="mdi:power-socket"></ha-icon>
           </div>
           <div class="node-label">Load</div>
-          <div class="node-status">
-            <span class="${packState.isDischarging ? 'status-on' : 'status-off'}">
-              ${packState.isDischarging ? 'ON' : 'OFF'}
-            </span>
-          </div>
+          ${packState.isDischarging ? html`
+            <div class="node-status">
+              <span class="status-on">ON</span>
+            </div>
+          ` : ''}
           ${dischargeCurrent > 0 ? html`
             <div class="node-current">${formatNumber(dischargeCurrent, 1)} A</div>
           ` : ''}
@@ -651,32 +745,32 @@ export class JkBmsReactorCard extends LitElement {
         <!-- SVG Flow Lines with animated dots -->
         <svg class="flow-svg" viewBox="0 0 400 180" preserveAspectRatio="none">
           <!-- Charge line (left to center) -->
-          <line x1="62.5" y1="90" x2="200" y2="90" 
+          <line x1="62.5" y1="${this._flowLineY}" x2="200" y2="${this._flowLineY}" 
                 class="flow-line ${isChargingFlow ? 'active-charge' : 'inactive'}" />
           ${isChargingFlow ? svg`
             <circle class="flow-dot dot-1" r="${chargeDotSize}" fill="var(--solar-color)">
-              <animateMotion dur="2s" repeatCount="indefinite" path="M 62.5,90 L 200,90" />
+              <animateMotion dur="2s" repeatCount="indefinite" path="M 62.5,${this._flowLineY} L 200,${this._flowLineY}" />
             </circle>
             <circle class="flow-dot dot-2" r="${chargeDotSize}" fill="var(--solar-color)">
-              <animateMotion dur="2s" repeatCount="indefinite" begin="0.5s" path="M 62.5,90 L 200,90" />
+              <animateMotion dur="2s" repeatCount="indefinite" begin="0.5s" path="M 62.5,${this._flowLineY} L 200,${this._flowLineY}" />
             </circle>
             <circle class="flow-dot dot-3" r="${chargeDotSize}" fill="var(--solar-color)">
-              <animateMotion dur="2s" repeatCount="indefinite" begin="1s" path="M 62.5,90 L 200,90" />
+              <animateMotion dur="2s" repeatCount="indefinite" begin="1s" path="M 62.5,${this._flowLineY} L 200,${this._flowLineY}" />
             </circle>
           ` : ''}
           
           <!-- Discharge line (center to right) -->
-          <line x1="200" y1="90" x2="337.5" y2="90" 
+          <line x1="200" y1="${this._flowLineY}" x2="337.5" y2="${this._flowLineY}" 
                 class="flow-line ${isDischargingFlow ? 'active-discharge' : 'inactive'}" />
           ${isDischargingFlow ? svg`
             <circle class="flow-dot dot-1" r="${dischargeDotSize}" fill="var(--discharge-color)">
-              <animateMotion dur="2s" repeatCount="indefinite" path="M 200,90 L 337.5,90" />
+              <animateMotion dur="2s" repeatCount="indefinite" path="M 200,${this._flowLineY} L 337.5,${this._flowLineY}" />
             </circle>
             <circle class="flow-dot dot-2" r="${dischargeDotSize}" fill="var(--discharge-color)">
-              <animateMotion dur="2s" repeatCount="indefinite" begin="0.5s" path="M 200,90 L 337.5,90" />
+              <animateMotion dur="2s" repeatCount="indefinite" begin="0.5s" path="M 200,${this._flowLineY} L 337.5,${this._flowLineY}" />
             </circle>
             <circle class="flow-dot dot-3" r="${dischargeDotSize}" fill="var(--discharge-color)">
-              <animateMotion dur="2s" repeatCount="indefinite" begin="1s" path="M 200,90 L 337.5,90" />
+              <animateMotion dur="2s" repeatCount="indefinite" begin="1s" path="M 200,${this._flowLineY} L 337.5,${this._flowLineY}" />
             </circle>
           ` : ''}
         </svg>
@@ -711,6 +805,30 @@ export class JkBmsReactorCard extends LitElement {
         ${(() => {
         const d = Math.abs(packState.delta ?? 0);
         const deltaLevel = d < 0.05 ? 'ok' : d < 0.1 ? 'warn' : d < 0.15 ? 'alert' : 'danger';
+
+        const stability = d < 0.04 ? 'stable' : d <= 0.1 ? 'moderate' : 'high';
+        const stabilityLabel = stability === 'stable'
+          ? 'Stable'
+          : stability === 'moderate'
+            ? 'Normal balancing'
+            : 'High spread';
+
+        const avgCellV = packState.cells.length
+          ? packState.cells.reduce((sum, c) => sum + c.voltage, 0) / packState.cells.length
+          : null;
+
+        const kneeWindow = 6;
+        const deltaHist = this._history.delta;
+        const deltaRise = deltaHist.length >= kneeWindow
+          ? deltaHist[deltaHist.length - 1] - deltaHist[deltaHist.length - kneeWindow]
+          : 0;
+
+        const inKnee =
+          (this._config.show_knee_zone ?? false) &&
+          avgCellV !== null &&
+          (avgCellV as number) > 3.38 &&
+          deltaRise >= 0.01;
+
         return html`
         <div class="stat-panel stat-delta delta-minmax-panel delta-${deltaLevel}">
           <div class="delta-minmax-container">
@@ -720,6 +838,15 @@ export class JkBmsReactorCard extends LitElement {
               </svg>
               <div class="delta-label">Delta</div>
               <div class="delta-value">${formatNumber(packState.delta, 3)}V</div>
+              <div class="stability-row stability-${stability}">
+                <span class="stability-dot"></span>
+                ${stabilityLabel} (Δ ${formatNumber(d, 3)}V)
+              </div>
+              ${inKnee ? html`
+                <div class="knee-indicator" title="Delta rising rapidly near top knee">
+                  Top Knee Zone
+                </div>
+              ` : ''}
             </div>
             <div class="delta-divider">|</div>
             <div class="delta-right">
@@ -768,6 +895,11 @@ export class JkBmsReactorCard extends LitElement {
     const showLabels = this._config.show_cell_labels !== false;
     const compact = this._config.compact_cells ?? false;
 
+    const heatmapMode = this._config.cell_heatmap_mode ?? 'normal';
+    const avgCellV = packState.cells.length
+      ? packState.cells.reduce((sum, c) => sum + c.voltage, 0) / packState.cells.length
+      : null;
+
     const mode = this._config.cell_order_mode ?? 'linear';
     const n = packState.cells.length;
     const half = Math.ceil(n / 2);
@@ -802,16 +934,14 @@ export class JkBmsReactorCard extends LitElement {
       return { row: Math.floor(idx / 2), side: idx % 2 };
     };
 
-    const dischargingIndex = packState.cells.findIndex(
-      c => c.isBalancing && c.balanceDirection === 'discharging'
-    );
-    const chargingIndex = packState.cells.findIndex(
-      c => c.isBalancing && c.balanceDirection === 'charging'
-    );
-    const showConnector = packState.isBalancing && dischargingIndex >= 0 && chargingIndex >= 0;
+    const balancingCells = packState.cells.filter(c => c.isBalancing);
+    const showConnector = packState.isBalancing && balancingCells.length >= 2;
 
-    const startIndex = dischargingIndex;
-    const endIndex = chargingIndex;
+    // Always flow from higher-voltage cell -> lower-voltage cell.
+    const maxBal = balancingCells.reduce((a, b) => (b.voltage > a.voltage ? b : a), balancingCells[0]);
+    const minBal = balancingCells.reduce((a, b) => (b.voltage < a.voltage ? b : a), balancingCells[0]);
+    const startIndex = showConnector ? maxBal.index : -1;
+    const endIndex = showConnector ? minBal.index : -1;
     const startPos = startIndex >= 0 ? posForIndex(startIndex) : { row: 0, side: 0 };
     const endPos = endIndex >= 0 ? posForIndex(endIndex) : { row: 0, side: 0 };
     const startRow = startPos.row;
@@ -831,8 +961,21 @@ export class JkBmsReactorCard extends LitElement {
     const yStart = y(startRow);
     const yEnd = y(endRow);
 
+    const colorForDir = (dir?: string | null) => {
+      if (dir === 'charging') return 'var(--balance-charge-color)';
+      if (dir === 'discharging') return 'var(--balance-discharge-color)';
+      return null;
+    };
+    const startColor = colorForDir((showConnector ? maxBal.balanceDirection : null) ?? null) ?? 'var(--balance-discharge-color)';
+    const endColor = colorForDir((showConnector ? minBal.balanceDirection : null) ?? null) ?? 'var(--balance-charge-color)';
+
     const cellTemplate = (cell: any, originalIndex: number) => {
       const cellClass = this._getCellVoltageClass(cell.voltage, packState.minCell, packState.maxCell);
+
+      const dev = avgCellV !== null ? Math.abs(cell.voltage - (avgCellV as number)) : 0;
+      const thermalClass = heatmapMode === 'spread'
+        ? (dev <= 0.02 ? 'thermal-green' : dev <= 0.05 ? 'thermal-yellow' : dev > 0.1 ? 'thermal-red' : 'thermal-orange')
+        : '';
 
       const minV = packState.minCell;
       const maxV = packState.maxCell;
@@ -845,7 +988,7 @@ export class JkBmsReactorCard extends LitElement {
       const isMax = maxV !== null && Math.abs(cell.voltage - maxV) <= eps;
 
       return html`
-        <div class="cell ${cellClass} ${cell.isBalancing ? `balancing${cell.balanceDirection ? ` balancing-${cell.balanceDirection}` : ''}` : ''}">
+        <div class="cell ${cellClass} ${thermalClass} ${cell.isBalancing ? `balancing${cell.balanceDirection ? ` balancing-${cell.balanceDirection}` : ''}` : ''}">
           ${isMin ? html`
             <div class="cell-extreme min" title="Min cell">
               <ha-icon icon="mdi:arrow-down-bold"></ha-icon>
@@ -880,53 +1023,86 @@ export class JkBmsReactorCard extends LitElement {
 
     const connectorPath = () => {
       if (!showConnector) return '';
-      if (startRow === endRow) {
-        return `M ${xStart} ${yStart} L ${xM} ${yStart} L ${xEnd} ${yEnd}`;
-      }
-
+      // Keep a constant path command structure so the SVG 'd' attribute can animate smoothly.
       return `M ${xStart} ${yStart} L ${xM} ${yStart} L ${xM} ${yEnd} L ${xEnd} ${yEnd}`;
     };
 
+    const flowNow = showConnector
+      ? {
+        d: connectorPath(),
+        x1: xStart,
+        y1: yStart,
+        x2: xEnd,
+        y2: yEnd,
+        c1: startColor,
+        c2: endColor,
+      }
+      : null;
+    this._pendingCellFlow = flowNow;
+    const flowPrev = this._lastCellFlow;
+
     return html`
       <div class="reactor-container">
-        <div class="reactor-grid ${compact ? 'compact' : ''}">
+        <div class="reactor-grid ${compact ? 'compact' : ''} ${heatmapMode === 'spread' ? 'spread' : ''}">
           <div class="cell-flow-column ${showConnector ? 'active' : ''} ${flowDirClass}" style="grid-row: 1 / span ${Math.max(1, rows)};">
             <svg class="cell-flow-svg" viewBox="0 0 100 ${Math.max(1, rows) * 10}" preserveAspectRatio="none" aria-hidden="true">
               <defs>
                 <linearGradient
                   id="cellFlowGrad-${this._uid}"
                   gradientUnits="userSpaceOnUse"
-                  x1="${xStart}"
-                  y1="${yStart}"
-                  x2="${xEnd}"
-                  y2="${yEnd}"
+                  x1="${flowNow?.x1 ?? xStart}"
+                  y1="${flowNow?.y1 ?? yStart}"
+                  x2="${flowNow?.x2 ?? xEnd}"
+                  y2="${flowNow?.y2 ?? yEnd}"
                 >
-                  <stop offset="0%" stop-color="var(--balance-discharge-color)"></stop>
-                  <stop offset="100%" stop-color="var(--balance-charge-color)"></stop>
+                  ${flowPrev && flowNow && (flowPrev.x1 !== flowNow.x1 || flowPrev.y1 !== flowNow.y1 || flowPrev.x2 !== flowNow.x2 || flowPrev.y2 !== flowNow.y2)
+        ? svg`
+                        <animate attributeName="x1" dur="260ms" fill="freeze" values="${flowPrev.x1};${flowNow.x1}"></animate>
+                        <animate attributeName="y1" dur="260ms" fill="freeze" values="${flowPrev.y1};${flowNow.y1}"></animate>
+                        <animate attributeName="x2" dur="260ms" fill="freeze" values="${flowPrev.x2};${flowNow.x2}"></animate>
+                        <animate attributeName="y2" dur="260ms" fill="freeze" values="${flowPrev.y2};${flowNow.y2}"></animate>
+                      `
+        : ''}
+                  <stop offset="0%" stop-color="${flowNow?.c1 ?? startColor}">
+                    ${flowPrev && flowNow && flowPrev.c1 !== flowNow.c1
+        ? svg`<animate attributeName="stop-color" dur="260ms" fill="freeze" values="${flowPrev.c1};${flowNow.c1}"></animate>`
+        : ''}
+                  </stop>
+                  <stop offset="100%" stop-color="${flowNow?.c2 ?? endColor}">
+                    ${flowPrev && flowNow && flowPrev.c2 !== flowNow.c2
+        ? svg`<animate attributeName="stop-color" dur="260ms" fill="freeze" values="${flowPrev.c2};${flowNow.c2}"></animate>`
+        : ''}
+                  </stop>
                 </linearGradient>
               </defs>
               <path
                 id="cellFlowPath-${this._uid}"
                 class="cell-flow-path ${showConnector ? 'active' : ''}"
-                d="${connectorPath()}"
+                d="${flowNow?.d ?? connectorPath()}"
                 vector-effect="non-scaling-stroke"
-              ></path>
+              >
+                ${flowPrev && flowNow && flowPrev.d !== flowNow.d
+        ? svg`<animate attributeName="d" dur="260ms" fill="freeze" values="${flowPrev.d};${flowNow.d}"></animate>`
+        : ''}
+              </path>
               ${showConnector ? svg`
                 <ellipse class="cell-flow-dot" rx="${this._cellFlowDotRx}" ry="${this._cellFlowDotRy}" fill="url(#cellFlowGrad-${this._uid})">
-                  <animateMotion dur="1.8s" repeatCount="indefinite" path="${connectorPath()}" />
+                  <animateMotion dur="1.8s" repeatCount="indefinite">
+                    <mpath href="#cellFlowPath-${this._uid}"></mpath>
+                  </animateMotion>
                 </ellipse>
               ` : ''}
             </svg>
           </div>
 
           ${Array.from({ length: rows }, (_, r) => {
-      const l = left[r];
-      const rc = right[r];
-      return html`
+          const l = left[r];
+          const rc = right[r];
+          return html`
               ${l ? html`<div class="cell-wrap" style="grid-column: 1; grid-row: ${r + 1};">${cellTemplate(l.cell, l.originalIndex)}</div>` : ''}
               ${rc ? html`<div class="cell-wrap" style="grid-column: 3; grid-row: ${r + 1};">${cellTemplate(rc.cell, rc.originalIndex)}</div>` : ''}
             `;
-    })}
+        })}
         </div>
       </div>
     `;

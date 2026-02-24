@@ -140,10 +140,18 @@ export class JkBmsReactorCardEditor extends LitElement {
       cell_columns: config.cell_columns ?? 2,
       cell_order_mode: config.cell_order_mode ?? 'linear',
 
+      cell_heatmap_mode: config.cell_heatmap_mode ?? 'normal',
+
       pack_voltage_min: config.pack_voltage_min,
       pack_voltage_max: config.pack_voltage_max,
       capacity_remaining: config.capacity_remaining ?? '',
       capacity_total_ah: config.capacity_total_ah,
+
+      energy_total_kwh: config.energy_total_kwh,
+      energy_uvp_cell_v: config.energy_uvp_cell_v,
+      energy_soc100_cell_v: config.energy_soc100_cell_v,
+
+      show_knee_zone: config.show_knee_zone ?? false,
 
       tint_soc_details: config.tint_soc_details ?? false,
     };
@@ -290,6 +298,35 @@ export class JkBmsReactorCardEditor extends LitElement {
           <div class="description">Controls how cells are arranged in the 2-column grid</div>
         </div>
 
+        <div class="option">
+          <label title="Normal shows the standard cell styling. Thermal spread colors cells by their deviation from the average cell voltage.">Cell View Mode</label>
+          <div class="radio-group">
+            <label class="radio">
+              <input
+                type="radio"
+                name="cell_heatmap_mode"
+                .checked=${(this._config.cell_heatmap_mode ?? 'normal') === 'normal'}
+                .value=${'normal'}
+                .configValue=${'cell_heatmap_mode'}
+                @change=${this._valueChanged}
+              />
+              Normal
+            </label>
+            <label class="radio">
+              <input
+                type="radio"
+                name="cell_heatmap_mode"
+                .checked=${(this._config.cell_heatmap_mode ?? 'normal') === 'spread'}
+                .value=${'spread'}
+                .configValue=${'cell_heatmap_mode'}
+                @change=${this._valueChanged}
+              />
+              Thermal spread
+            </label>
+          </div>
+          <div class="description">Colors cells by how far they drift from the average cell voltage</div>
+        </div>
+
         <div class="section-title">Optional Settings</div>
 
         <div class="option">
@@ -312,6 +349,63 @@ export class JkBmsReactorCardEditor extends LitElement {
       onChanged: this._valueChanged,
     })}
           <div class="description">Entity for balancing current (displayed in reactor ring)</div>
+        </div>
+
+        <div class="section-title">Energy (Optional)</div>
+
+        <div class="option">
+          <label title="Enables the Energy Available estimate shown under SOC. This should be the pack's nominal usable energy in kWh.">Total Energy (kWh)</label>
+          <ha-textfield
+            type="number"
+            step="0.1"
+            .value=${this._config.energy_total_kwh ?? ''}
+            .configValue=${'energy_total_kwh'}
+            @input=${this._valueChanged}
+            placeholder="13.4"
+            title="Used for Energy Available: available_kWh = clamp((avgCellV - UVP) / (SOC100 - UVP), 0..1) * total_kWh"
+          ></ha-textfield>
+          <div class="description">Used to estimate "Energy Available" under SOC</div>
+        </div>
+
+        <div class="option">
+          <label title="Lower reference point for the energy estimate (cell-level voltage). Typically near your BMS undervoltage protection point.">UVP Cell Voltage (V)</label>
+          <ha-textfield
+            type="number"
+            step="0.01"
+            .value=${this._config.energy_uvp_cell_v ?? ''}
+            .configValue=${'energy_uvp_cell_v'}
+            @input=${this._valueChanged}
+            placeholder="2.80"
+            title="Cell-level voltage at 0% reference (UVP). Must be less than SOC 100% voltage."
+          ></ha-textfield>
+        </div>
+
+        <div class="option">
+          <label title="Upper reference point for the energy estimate (cell-level voltage). This is NOT pack voltage.">SOC 100% Cell Voltage (V)</label>
+          <ha-textfield
+            type="number"
+            step="0.01"
+            .value=${this._config.energy_soc100_cell_v ?? ''}
+            .configValue=${'energy_soc100_cell_v'}
+            @input=${this._valueChanged}
+            placeholder="3.45"
+            title="Cell-level voltage treated as 100% reference for the estimate. Must be greater than UVP voltage."
+          ></ha-textfield>
+          <div class="description">Used as the upper reference for the energy estimate</div>
+        </div>
+
+        <div class="section-title">Advanced (Optional)</div>
+
+        <div class="option">
+          <ha-switch
+            .checked=${this._config.show_knee_zone ?? false}
+            .configValue=${'show_knee_zone'}
+            @change=${this._toggleChanged}
+            title="Shows Top Knee Zone when avg cell voltage is high and delta is rising rapidly (uses a short delta history window)."
+          >
+            <span slot="label">Show "Top Knee Zone" indicator</span>
+          </ha-switch>
+          <div class="description">Shows when avg cell voltage is high and delta is rising rapidly</div>
         </div>
 
         <div class="option">

@@ -977,6 +977,14 @@ const styles = i$3`
     margin-top: 4px;
   }
 
+  .energy-text {
+    font-size: 0.78em;
+    color: var(--secondary-text-color);
+    margin-top: 4px;
+    opacity: 0.95;
+    text-align: center;
+  }
+
   /* SVG Flow Lines */
   .flow-svg {
     position: absolute;
@@ -1128,6 +1136,11 @@ const styles = i$3`
     stroke: rgba(65, 205, 82, 0.45);
   }
 
+  .stat-panel.stat-delta .delta-label,
+  .stat-panel.stat-delta .delta-value {
+    color: rgba(65, 205, 82, 0.90);
+  }
+
   .stat-panel.stat-delta.delta-warn {
     box-shadow: 0 0 18px rgba(255, 211, 15, 0.18);
     border-color: rgba(255, 211, 15, 0.25);
@@ -1137,6 +1150,11 @@ const styles = i$3`
   }
   .stat-panel.stat-delta.delta-warn .delta-sparkline-svg .sparkline.delta {
     stroke: rgba(255, 211, 15, 0.55);
+  }
+
+  .stat-panel.stat-delta.delta-warn .delta-label,
+  .stat-panel.stat-delta.delta-warn .delta-value {
+    color: rgba(255, 211, 15, 0.92);
   }
 
   .stat-panel.stat-delta.delta-alert {
@@ -1150,6 +1168,11 @@ const styles = i$3`
     stroke: rgba(255, 146, 43, 0.60);
   }
 
+  .stat-panel.stat-delta.delta-alert .delta-label,
+  .stat-panel.stat-delta.delta-alert .delta-value {
+    color: rgba(255, 146, 43, 0.92);
+  }
+
   .stat-panel.stat-delta.delta-danger {
     border-color: rgba(255, 80, 80, 0.45);
     animation: delta-danger-pulse 1.4s ease-in-out infinite;
@@ -1159,6 +1182,60 @@ const styles = i$3`
   }
   .stat-panel.stat-delta.delta-danger .delta-sparkline-svg .sparkline.delta {
     stroke: rgba(255, 80, 80, 0.70);
+  }
+
+  .stat-panel.stat-delta.delta-danger .delta-label,
+  .stat-panel.stat-delta.delta-danger .delta-value {
+    color: rgba(255, 80, 80, 0.95);
+  }
+
+  .stability-row {
+    margin-top: 6px;
+    font-size: 12px;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 10px;
+    border-radius: 999px;
+    border: 1px solid rgba(255, 255, 255, 0.10);
+    background: rgba(0, 0, 0, 0.14);
+    color: var(--secondary-text-color);
+    white-space: nowrap;
+  }
+
+  .stability-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: currentColor;
+    box-shadow: 0 0 10px currentColor;
+    opacity: 0.9;
+  }
+
+  .stability-stable {
+    color: rgba(65, 205, 82, 0.95);
+    border-color: rgba(65, 205, 82, 0.20);
+    background: rgba(65, 205, 82, 0.08);
+  }
+
+  .stability-moderate {
+    color: rgba(255, 211, 15, 0.95);
+    border-color: rgba(255, 211, 15, 0.22);
+    background: rgba(255, 211, 15, 0.08);
+  }
+
+  .stability-high {
+    color: rgba(255, 80, 80, 0.95);
+    border-color: rgba(255, 80, 80, 0.25);
+    background: rgba(255, 80, 80, 0.08);
+  }
+
+  .knee-indicator {
+    margin-top: 6px;
+    font-size: 12px;
+    color: rgba(255, 146, 43, 0.92);
+    opacity: 0.95;
+    letter-spacing: 0.2px;
   }
 
   @keyframes delta-bg-shift {
@@ -1177,10 +1254,16 @@ const styles = i$3`
 
   .temps-grid {
     display: grid;
-    grid-template-columns: repeat(2, 1fr);
+    grid-template-columns: repeat(4, minmax(0, 1fr));
     gap: 8px;
     margin-top: -8px;
     margin-bottom: 16px;
+  }
+
+  @media (max-width: 900px) {
+    .temps-grid {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
   }
 
   .delta-minmax-container {
@@ -1420,6 +1503,30 @@ const styles = i$3`
     position: relative;
     transition: all 0.3s ease;
     overflow: hidden;
+  }
+
+  .reactor-grid.spread .cell {
+    background: var(--panel-bg);
+  }
+
+  .reactor-grid.spread .cell.thermal-green {
+    background: linear-gradient(135deg, rgba(65, 205, 82, 0.16), rgba(65, 205, 82, 0.06));
+    border-color: rgba(65, 205, 82, 0.32);
+  }
+
+  .reactor-grid.spread .cell.thermal-yellow {
+    background: linear-gradient(135deg, rgba(255, 211, 15, 0.16), rgba(255, 211, 15, 0.06));
+    border-color: rgba(255, 211, 15, 0.32);
+  }
+
+  .reactor-grid.spread .cell.thermal-orange {
+    background: linear-gradient(135deg, rgba(255, 146, 43, 0.18), rgba(255, 146, 43, 0.07));
+    border-color: rgba(255, 146, 43, 0.34);
+  }
+
+  .reactor-grid.spread .cell.thermal-red {
+    background: linear-gradient(135deg, rgba(255, 80, 80, 0.20), rgba(255, 80, 80, 0.08));
+    border-color: rgba(255, 80, 80, 0.38);
   }
 
   .cell-extreme {
@@ -1810,7 +1917,10 @@ class JkBmsReactorCard extends i {
     super(...arguments);
     this._cellFlowDotRx = 4;
     this._cellFlowDotRy = 4;
+    this._flowLineY = 90;
     this._copyHint = null;
+    this._lastCellFlow = null;
+    this._pendingCellFlow = null;
     this._uid = Math.random().toString(36).slice(2, 9);
     this._history = {
       voltage: [],
@@ -1830,9 +1940,11 @@ class JkBmsReactorCard extends i {
   firstUpdated() {
     this._resizeObserver = new ResizeObserver(() => {
       this._updateCellFlowDotRadii();
+      this._updateFlowLineY();
     });
     this._resizeObserver.observe(this);
     this._updateCellFlowDotRadii();
+    this._updateFlowLineY();
   }
   disconnectedCallback() {
     var _a2;
@@ -1928,11 +2040,31 @@ class JkBmsReactorCard extends i {
     const sx = rect.width / vbW;
     const sy = rect.height / vbH;
     if (!Number.isFinite(sx) || !Number.isFinite(sy) || sx <= 0 || sy <= 0) return;
-    const rx = Math.max(1.5, Math.min(12, desiredPxRadius / sx));
-    const ry = Math.max(1.5, Math.min(12, desiredPxRadius / sy));
+    const rx = Math.max(0.5, Math.min(200, desiredPxRadius / sx));
+    const ry = Math.max(0.5, Math.min(200, desiredPxRadius / sy));
     if (Math.abs(rx - this._cellFlowDotRx) > 0.05 || Math.abs(ry - this._cellFlowDotRy) > 0.05) {
       this._cellFlowDotRx = rx;
       this._cellFlowDotRy = ry;
+    }
+  }
+  _updateFlowLineY() {
+    var _a2, _b, _c, _d, _e;
+    const flow = (_a2 = this.renderRoot) == null ? void 0 : _a2.querySelector(".flow-section");
+    const svgEl = (_b = this.renderRoot) == null ? void 0 : _b.querySelector("svg.flow-svg");
+    const chargeIcon = (_c = this.renderRoot) == null ? void 0 : _c.querySelector(".flow-section .flow-node:first-of-type .icon-circle");
+    const loadIcon = (_d = this.renderRoot) == null ? void 0 : _d.querySelector(".flow-section .flow-node:last-of-type .icon-circle");
+    const ring = (_e = this.renderRoot) == null ? void 0 : _e.querySelector(".reactor-ring-container");
+    if (!flow || !svgEl || !chargeIcon || !loadIcon || !ring) return;
+    const flowRect = flow.getBoundingClientRect();
+    if (!flowRect.height) return;
+    const cy = (el) => {
+      const r2 = el.getBoundingClientRect();
+      return r2.top + r2.height / 2 - flowRect.top;
+    };
+    const avgY = (cy(chargeIcon) + cy(ring) + cy(loadIcon)) / 3;
+    const y3 = Math.max(0, Math.min(180, avgY / flowRect.height * 180));
+    if (Number.isFinite(y3) && Math.abs(y3 - this._flowLineY) > 0.4) {
+      this._flowLineY = y3;
     }
   }
   setConfig(config) {
@@ -1951,6 +2083,7 @@ class JkBmsReactorCard extends i {
       show_cell_labels: config.show_cell_labels ?? true,
       compact_cells: config.compact_cells ?? false,
       cell_columns: config.cell_columns ?? 2,
+      cell_heatmap_mode: config.cell_heatmap_mode ?? "normal",
       balance_threshold_v: config.balance_threshold_v ?? 0.01,
       charge_threshold_a: config.charge_threshold_a ?? 0.5,
       discharge_threshold_a: config.discharge_threshold_a ?? 0.5,
@@ -1958,6 +2091,10 @@ class JkBmsReactorCard extends i {
       pack_voltage_max: config.pack_voltage_max,
       capacity_remaining: config.capacity_remaining,
       capacity_total_ah: config.capacity_total_ah,
+      energy_total_kwh: config.energy_total_kwh,
+      energy_uvp_cell_v: config.energy_uvp_cell_v,
+      energy_soc100_cell_v: config.energy_soc100_cell_v,
+      show_knee_zone: config.show_knee_zone ?? false,
       cell_order_mode: config.cell_order_mode ?? "linear",
       tint_soc_details: config.tint_soc_details ?? false
     };
@@ -2026,6 +2163,9 @@ class JkBmsReactorCard extends i {
     var _a2;
     super.updated(changedProperties);
     this._updateCellFlowDotRadii(4.5);
+    this._updateFlowLineY();
+    this._lastCellFlow = this._pendingCellFlow;
+    this._pendingCellFlow = null;
     if (!changedProperties.has("hass")) return;
     if (!this.hass || !this._config) return;
     if (!this._historySeeded) {
@@ -2250,6 +2390,16 @@ class JkBmsReactorCard extends i {
     const activeSegs = Math.max(0, Math.min(segCount, Math.round(soc / 100 * segCount)));
     const socGlowClass = isChargingFlow ? "charging" : isDischargingFlow ? "discharging" : "standby";
     const capacityLeftAh = packState.capacityRemainingAh ?? null ?? (this._config.capacity_total_ah !== void 0 && this._config.capacity_total_ah !== null && Number.isFinite(this._config.capacity_total_ah) ? packState.soc !== null && packState.soc !== void 0 ? this._config.capacity_total_ah * (packState.soc / 100) : null : null);
+    const avgCellV = packState.cells.length ? packState.cells.reduce((sum, c2) => sum + c2.voltage, 0) / packState.cells.length : this._config.cells_count && Number.isFinite(this._config.cells_count) ? voltage / this._config.cells_count : null;
+    const canEnergy = avgCellV !== null && this._config.energy_total_kwh !== void 0 && Number.isFinite(this._config.energy_total_kwh) && this._config.energy_uvp_cell_v !== void 0 && Number.isFinite(this._config.energy_uvp_cell_v) && this._config.energy_soc100_cell_v !== void 0 && Number.isFinite(this._config.energy_soc100_cell_v) && this._config.energy_soc100_cell_v > this._config.energy_uvp_cell_v;
+    const energyAvailableKwh = canEnergy ? (() => {
+      const uvp = this._config.energy_uvp_cell_v;
+      const soc100 = this._config.energy_soc100_cell_v;
+      const total = this._config.energy_total_kwh;
+      const t2 = (avgCellV - uvp) / (soc100 - uvp);
+      const clamped = Math.max(0, Math.min(1, t2));
+      return clamped * total;
+    })() : null;
     return b`
       <div class="flow-section">
         <!-- Charger Node -->
@@ -2259,11 +2409,11 @@ class JkBmsReactorCard extends i {
             <ha-icon icon="mdi:power-plug-outline"></ha-icon>
           </div>
           <div class="node-label">Charge</div>
-          <div class="node-status">
-            <span class="${packState.isCharging ? "status-on" : "status-off"}">
-              ${packState.isCharging ? "ON" : "OFF"}
-            </span>
-          </div>
+          ${packState.isCharging ? b`
+            <div class="node-status">
+              <span class="status-on">ON</span>
+            </div>
+          ` : ""}
           ${chargeCurrent > 0 ? b`
             <div class="node-current">${formatNumber(chargeCurrent, 1)} A</div>
           ` : ""}
@@ -2291,6 +2441,9 @@ class JkBmsReactorCard extends i {
             <div class="capacity-text">
               ${packState.isBalancing && packState.balanceCurrent !== null ? b`${formatNumber(packState.balanceCurrent, 2)} A` : capacityLeftAh !== null ? b`${formatNumber(capacityLeftAh, 1)} Ah` : b`${formatNumber(voltage, 1)}V`}
             </div>
+            ${energyAvailableKwh !== null ? b`
+              <div class="energy-text">Energy Available: ${formatNumber(energyAvailableKwh, 1)} kWh</div>
+            ` : ""}
           </div>
         </div>
 
@@ -2301,11 +2454,11 @@ class JkBmsReactorCard extends i {
             <ha-icon icon="mdi:power-socket"></ha-icon>
           </div>
           <div class="node-label">Load</div>
-          <div class="node-status">
-            <span class="${packState.isDischarging ? "status-on" : "status-off"}">
-              ${packState.isDischarging ? "ON" : "OFF"}
-            </span>
-          </div>
+          ${packState.isDischarging ? b`
+            <div class="node-status">
+              <span class="status-on">ON</span>
+            </div>
+          ` : ""}
           ${dischargeCurrent > 0 ? b`
             <div class="node-current">${formatNumber(dischargeCurrent, 1)} A</div>
           ` : ""}
@@ -2314,32 +2467,32 @@ class JkBmsReactorCard extends i {
         <!-- SVG Flow Lines with animated dots -->
         <svg class="flow-svg" viewBox="0 0 400 180" preserveAspectRatio="none">
           <!-- Charge line (left to center) -->
-          <line x1="62.5" y1="90" x2="200" y2="90" 
+          <line x1="62.5" y1="${this._flowLineY}" x2="200" y2="${this._flowLineY}" 
                 class="flow-line ${isChargingFlow ? "active-charge" : "inactive"}" />
           ${isChargingFlow ? w`
             <circle class="flow-dot dot-1" r="${chargeDotSize}" fill="var(--solar-color)">
-              <animateMotion dur="2s" repeatCount="indefinite" path="M 62.5,90 L 200,90" />
+              <animateMotion dur="2s" repeatCount="indefinite" path="M 62.5,${this._flowLineY} L 200,${this._flowLineY}" />
             </circle>
             <circle class="flow-dot dot-2" r="${chargeDotSize}" fill="var(--solar-color)">
-              <animateMotion dur="2s" repeatCount="indefinite" begin="0.5s" path="M 62.5,90 L 200,90" />
+              <animateMotion dur="2s" repeatCount="indefinite" begin="0.5s" path="M 62.5,${this._flowLineY} L 200,${this._flowLineY}" />
             </circle>
             <circle class="flow-dot dot-3" r="${chargeDotSize}" fill="var(--solar-color)">
-              <animateMotion dur="2s" repeatCount="indefinite" begin="1s" path="M 62.5,90 L 200,90" />
+              <animateMotion dur="2s" repeatCount="indefinite" begin="1s" path="M 62.5,${this._flowLineY} L 200,${this._flowLineY}" />
             </circle>
           ` : ""}
           
           <!-- Discharge line (center to right) -->
-          <line x1="200" y1="90" x2="337.5" y2="90" 
+          <line x1="200" y1="${this._flowLineY}" x2="337.5" y2="${this._flowLineY}" 
                 class="flow-line ${isDischargingFlow ? "active-discharge" : "inactive"}" />
           ${isDischargingFlow ? w`
             <circle class="flow-dot dot-1" r="${dischargeDotSize}" fill="var(--discharge-color)">
-              <animateMotion dur="2s" repeatCount="indefinite" path="M 200,90 L 337.5,90" />
+              <animateMotion dur="2s" repeatCount="indefinite" path="M 200,${this._flowLineY} L 337.5,${this._flowLineY}" />
             </circle>
             <circle class="flow-dot dot-2" r="${dischargeDotSize}" fill="var(--discharge-color)">
-              <animateMotion dur="2s" repeatCount="indefinite" begin="0.5s" path="M 200,90 L 337.5,90" />
+              <animateMotion dur="2s" repeatCount="indefinite" begin="0.5s" path="M 200,${this._flowLineY} L 337.5,${this._flowLineY}" />
             </circle>
             <circle class="flow-dot dot-3" r="${dischargeDotSize}" fill="var(--discharge-color)">
-              <animateMotion dur="2s" repeatCount="indefinite" begin="1s" path="M 200,90 L 337.5,90" />
+              <animateMotion dur="2s" repeatCount="indefinite" begin="1s" path="M 200,${this._flowLineY} L 337.5,${this._flowLineY}" />
             </circle>
           ` : ""}
         </svg>
@@ -2374,6 +2527,13 @@ class JkBmsReactorCard extends i {
         ${(() => {
       const d2 = Math.abs(packState.delta ?? 0);
       const deltaLevel = d2 < 0.05 ? "ok" : d2 < 0.1 ? "warn" : d2 < 0.15 ? "alert" : "danger";
+      const stability = d2 < 0.04 ? "stable" : d2 <= 0.1 ? "moderate" : "high";
+      const stabilityLabel = stability === "stable" ? "Stable" : stability === "moderate" ? "Normal balancing" : "High spread";
+      const avgCellV2 = packState.cells.length ? packState.cells.reduce((sum, c2) => sum + c2.voltage, 0) / packState.cells.length : null;
+      const kneeWindow = 6;
+      const deltaHist = this._history.delta;
+      const deltaRise = deltaHist.length >= kneeWindow ? deltaHist[deltaHist.length - 1] - deltaHist[deltaHist.length - kneeWindow] : 0;
+      const inKnee = (this._config.show_knee_zone ?? false) && avgCellV2 !== null && avgCellV2 > 3.38 && deltaRise >= 0.01;
       return b`
         <div class="stat-panel stat-delta delta-minmax-panel delta-${deltaLevel}">
           <div class="delta-minmax-container">
@@ -2383,6 +2543,15 @@ class JkBmsReactorCard extends i {
               </svg>
               <div class="delta-label">Delta</div>
               <div class="delta-value">${formatNumber(packState.delta, 3)}V</div>
+              <div class="stability-row stability-${stability}">
+                <span class="stability-dot"></span>
+                ${stabilityLabel} (Δ ${formatNumber(d2, 3)}V)
+              </div>
+              ${inKnee ? b`
+                <div class="knee-indicator" title="Delta rising rapidly near top knee">
+                  Top Knee Zone
+                </div>
+              ` : ""}
             </div>
             <div class="delta-divider">|</div>
             <div class="delta-right">
@@ -2429,6 +2598,8 @@ class JkBmsReactorCard extends i {
   _renderReactor(packState) {
     const showLabels = this._config.show_cell_labels !== false;
     const compact = this._config.compact_cells ?? false;
+    const heatmapMode = this._config.cell_heatmap_mode ?? "normal";
+    const avgCellV = packState.cells.length ? packState.cells.reduce((sum, c2) => sum + c2.voltage, 0) / packState.cells.length : null;
     const mode = this._config.cell_order_mode ?? "linear";
     const n3 = packState.cells.length;
     const half = Math.ceil(n3 / 2);
@@ -2454,15 +2625,12 @@ class JkBmsReactorCard extends i {
       }
       return { row: Math.floor(idx / 2), side: idx % 2 };
     };
-    const dischargingIndex = packState.cells.findIndex(
-      (c2) => c2.isBalancing && c2.balanceDirection === "discharging"
-    );
-    const chargingIndex = packState.cells.findIndex(
-      (c2) => c2.isBalancing && c2.balanceDirection === "charging"
-    );
-    const showConnector = packState.isBalancing && dischargingIndex >= 0 && chargingIndex >= 0;
-    const startIndex = dischargingIndex;
-    const endIndex = chargingIndex;
+    const balancingCells = packState.cells.filter((c2) => c2.isBalancing);
+    const showConnector = packState.isBalancing && balancingCells.length >= 2;
+    const maxBal = balancingCells.reduce((a2, b2) => b2.voltage > a2.voltage ? b2 : a2, balancingCells[0]);
+    const minBal = balancingCells.reduce((a2, b2) => b2.voltage < a2.voltage ? b2 : a2, balancingCells[0]);
+    const startIndex = showConnector ? maxBal.index : -1;
+    const endIndex = showConnector ? minBal.index : -1;
     const startPos = startIndex >= 0 ? posForIndex(startIndex) : { row: 0, side: 0 };
     const endPos = endIndex >= 0 ? posForIndex(endIndex) : { row: 0, side: 0 };
     const startRow = startPos.row;
@@ -2479,8 +2647,17 @@ class JkBmsReactorCard extends i {
     const xEnd = endSide === 0 ? xL : xR;
     const yStart = y3(startRow);
     const yEnd = y3(endRow);
+    const colorForDir = (dir) => {
+      if (dir === "charging") return "var(--balance-charge-color)";
+      if (dir === "discharging") return "var(--balance-discharge-color)";
+      return null;
+    };
+    const startColor = colorForDir((showConnector ? maxBal.balanceDirection : null) ?? null) ?? "var(--balance-discharge-color)";
+    const endColor = colorForDir((showConnector ? minBal.balanceDirection : null) ?? null) ?? "var(--balance-charge-color)";
     const cellTemplate = (cell, originalIndex) => {
       const cellClass = this._getCellVoltageClass(cell.voltage, packState.minCell, packState.maxCell);
+      const dev = avgCellV !== null ? Math.abs(cell.voltage - avgCellV) : 0;
+      const thermalClass = heatmapMode === "spread" ? dev <= 0.02 ? "thermal-green" : dev <= 0.05 ? "thermal-yellow" : dev > 0.1 ? "thermal-red" : "thermal-orange" : "";
       const minV = packState.minCell;
       const maxV = packState.maxCell;
       const span = minV !== null && maxV !== null ? maxV - minV : 0;
@@ -2490,7 +2667,7 @@ class JkBmsReactorCard extends i {
       const isMin = minV !== null && Math.abs(cell.voltage - minV) <= eps;
       const isMax = maxV !== null && Math.abs(cell.voltage - maxV) <= eps;
       return b`
-        <div class="cell ${cellClass} ${cell.isBalancing ? `balancing${cell.balanceDirection ? ` balancing-${cell.balanceDirection}` : ""}` : ""}">
+        <div class="cell ${cellClass} ${thermalClass} ${cell.isBalancing ? `balancing${cell.balanceDirection ? ` balancing-${cell.balanceDirection}` : ""}` : ""}">
           ${isMin ? b`
             <div class="cell-extreme min" title="Min cell">
               <ha-icon icon="mdi:arrow-down-bold"></ha-icon>
@@ -2524,38 +2701,60 @@ class JkBmsReactorCard extends i {
     };
     const connectorPath = () => {
       if (!showConnector) return "";
-      if (startRow === endRow) {
-        return `M ${xStart} ${yStart} L ${xM} ${yStart} L ${xEnd} ${yEnd}`;
-      }
       return `M ${xStart} ${yStart} L ${xM} ${yStart} L ${xM} ${yEnd} L ${xEnd} ${yEnd}`;
     };
+    const flowNow = showConnector ? {
+      d: connectorPath(),
+      x1: xStart,
+      y1: yStart,
+      x2: xEnd,
+      y2: yEnd,
+      c1: startColor,
+      c2: endColor
+    } : null;
+    this._pendingCellFlow = flowNow;
+    const flowPrev = this._lastCellFlow;
     return b`
       <div class="reactor-container">
-        <div class="reactor-grid ${compact ? "compact" : ""}">
+        <div class="reactor-grid ${compact ? "compact" : ""} ${heatmapMode === "spread" ? "spread" : ""}">
           <div class="cell-flow-column ${showConnector ? "active" : ""} ${flowDirClass}" style="grid-row: 1 / span ${Math.max(1, rows)};">
             <svg class="cell-flow-svg" viewBox="0 0 100 ${Math.max(1, rows) * 10}" preserveAspectRatio="none" aria-hidden="true">
               <defs>
                 <linearGradient
                   id="cellFlowGrad-${this._uid}"
                   gradientUnits="userSpaceOnUse"
-                  x1="${xStart}"
-                  y1="${yStart}"
-                  x2="${xEnd}"
-                  y2="${yEnd}"
+                  x1="${(flowNow == null ? void 0 : flowNow.x1) ?? xStart}"
+                  y1="${(flowNow == null ? void 0 : flowNow.y1) ?? yStart}"
+                  x2="${(flowNow == null ? void 0 : flowNow.x2) ?? xEnd}"
+                  y2="${(flowNow == null ? void 0 : flowNow.y2) ?? yEnd}"
                 >
-                  <stop offset="0%" stop-color="var(--balance-discharge-color)"></stop>
-                  <stop offset="100%" stop-color="var(--balance-charge-color)"></stop>
+                  ${flowPrev && flowNow && (flowPrev.x1 !== flowNow.x1 || flowPrev.y1 !== flowNow.y1 || flowPrev.x2 !== flowNow.x2 || flowPrev.y2 !== flowNow.y2) ? w`
+                        <animate attributeName="x1" dur="260ms" fill="freeze" values="${flowPrev.x1};${flowNow.x1}"></animate>
+                        <animate attributeName="y1" dur="260ms" fill="freeze" values="${flowPrev.y1};${flowNow.y1}"></animate>
+                        <animate attributeName="x2" dur="260ms" fill="freeze" values="${flowPrev.x2};${flowNow.x2}"></animate>
+                        <animate attributeName="y2" dur="260ms" fill="freeze" values="${flowPrev.y2};${flowNow.y2}"></animate>
+                      ` : ""}
+                  <stop offset="0%" stop-color="${(flowNow == null ? void 0 : flowNow.c1) ?? startColor}">
+                    ${flowPrev && flowNow && flowPrev.c1 !== flowNow.c1 ? w`<animate attributeName="stop-color" dur="260ms" fill="freeze" values="${flowPrev.c1};${flowNow.c1}"></animate>` : ""}
+                  </stop>
+                  <stop offset="100%" stop-color="${(flowNow == null ? void 0 : flowNow.c2) ?? endColor}">
+                    ${flowPrev && flowNow && flowPrev.c2 !== flowNow.c2 ? w`<animate attributeName="stop-color" dur="260ms" fill="freeze" values="${flowPrev.c2};${flowNow.c2}"></animate>` : ""}
+                  </stop>
                 </linearGradient>
               </defs>
               <path
                 id="cellFlowPath-${this._uid}"
                 class="cell-flow-path ${showConnector ? "active" : ""}"
-                d="${connectorPath()}"
+                d="${(flowNow == null ? void 0 : flowNow.d) ?? connectorPath()}"
                 vector-effect="non-scaling-stroke"
-              ></path>
+              >
+                ${flowPrev && flowNow && flowPrev.d !== flowNow.d ? w`<animate attributeName="d" dur="260ms" fill="freeze" values="${flowPrev.d};${flowNow.d}"></animate>` : ""}
+              </path>
               ${showConnector ? w`
                 <ellipse class="cell-flow-dot" rx="${this._cellFlowDotRx}" ry="${this._cellFlowDotRy}" fill="url(#cellFlowGrad-${this._uid})">
-                  <animateMotion dur="1.8s" repeatCount="indefinite" path="${connectorPath()}" />
+                  <animateMotion dur="1.8s" repeatCount="indefinite">
+                    <mpath href="#cellFlowPath-${this._uid}"></mpath>
+                  </animateMotion>
                 </ellipse>
               ` : ""}
             </svg>
@@ -2632,6 +2831,9 @@ __decorateClass$1([
 __decorateClass$1([
   r()
 ], JkBmsReactorCard.prototype, "_cellFlowDotRy");
+__decorateClass$1([
+  r()
+], JkBmsReactorCard.prototype, "_flowLineY");
 __decorateClass$1([
   r()
 ], JkBmsReactorCard.prototype, "_copyHint");
@@ -2797,10 +2999,15 @@ class JkBmsReactorCardEditor extends i {
       show_cell_labels: config.show_cell_labels ?? true,
       cell_columns: config.cell_columns ?? 2,
       cell_order_mode: config.cell_order_mode ?? "linear",
+      cell_heatmap_mode: config.cell_heatmap_mode ?? "normal",
       pack_voltage_min: config.pack_voltage_min,
       pack_voltage_max: config.pack_voltage_max,
       capacity_remaining: config.capacity_remaining ?? "",
       capacity_total_ah: config.capacity_total_ah,
+      energy_total_kwh: config.energy_total_kwh,
+      energy_uvp_cell_v: config.energy_uvp_cell_v,
+      energy_soc100_cell_v: config.energy_soc100_cell_v,
+      show_knee_zone: config.show_knee_zone ?? false,
       tint_soc_details: config.tint_soc_details ?? false
     };
   }
@@ -2932,6 +3139,35 @@ class JkBmsReactorCardEditor extends i {
           <div class="description">Controls how cells are arranged in the 2-column grid</div>
         </div>
 
+        <div class="option">
+          <label title="Normal shows the standard cell styling. Thermal spread colors cells by their deviation from the average cell voltage.">Cell View Mode</label>
+          <div class="radio-group">
+            <label class="radio">
+              <input
+                type="radio"
+                name="cell_heatmap_mode"
+                .checked=${(this._config.cell_heatmap_mode ?? "normal") === "normal"}
+                .value=${"normal"}
+                .configValue=${"cell_heatmap_mode"}
+                @change=${this._valueChanged}
+              />
+              Normal
+            </label>
+            <label class="radio">
+              <input
+                type="radio"
+                name="cell_heatmap_mode"
+                .checked=${(this._config.cell_heatmap_mode ?? "normal") === "spread"}
+                .value=${"spread"}
+                .configValue=${"cell_heatmap_mode"}
+                @change=${this._valueChanged}
+              />
+              Thermal spread
+            </label>
+          </div>
+          <div class="description">Colors cells by how far they drift from the average cell voltage</div>
+        </div>
+
         <div class="section-title">Optional Settings</div>
 
         <div class="option">
@@ -2954,6 +3190,63 @@ class JkBmsReactorCardEditor extends i {
       onChanged: this._valueChanged
     })}
           <div class="description">Entity for balancing current (displayed in reactor ring)</div>
+        </div>
+
+        <div class="section-title">Energy (Optional)</div>
+
+        <div class="option">
+          <label title="Enables the Energy Available estimate shown under SOC. This should be the pack's nominal usable energy in kWh.">Total Energy (kWh)</label>
+          <ha-textfield
+            type="number"
+            step="0.1"
+            .value=${this._config.energy_total_kwh ?? ""}
+            .configValue=${"energy_total_kwh"}
+            @input=${this._valueChanged}
+            placeholder="13.4"
+            title="Used for Energy Available: available_kWh = clamp((avgCellV - UVP) / (SOC100 - UVP), 0..1) * total_kWh"
+          ></ha-textfield>
+          <div class="description">Used to estimate "Energy Available" under SOC</div>
+        </div>
+
+        <div class="option">
+          <label title="Lower reference point for the energy estimate (cell-level voltage). Typically near your BMS undervoltage protection point.">UVP Cell Voltage (V)</label>
+          <ha-textfield
+            type="number"
+            step="0.01"
+            .value=${this._config.energy_uvp_cell_v ?? ""}
+            .configValue=${"energy_uvp_cell_v"}
+            @input=${this._valueChanged}
+            placeholder="2.80"
+            title="Cell-level voltage at 0% reference (UVP). Must be less than SOC 100% voltage."
+          ></ha-textfield>
+        </div>
+
+        <div class="option">
+          <label title="Upper reference point for the energy estimate (cell-level voltage). This is NOT pack voltage.">SOC 100% Cell Voltage (V)</label>
+          <ha-textfield
+            type="number"
+            step="0.01"
+            .value=${this._config.energy_soc100_cell_v ?? ""}
+            .configValue=${"energy_soc100_cell_v"}
+            @input=${this._valueChanged}
+            placeholder="3.45"
+            title="Cell-level voltage treated as 100% reference for the estimate. Must be greater than UVP voltage."
+          ></ha-textfield>
+          <div class="description">Used as the upper reference for the energy estimate</div>
+        </div>
+
+        <div class="section-title">Advanced (Optional)</div>
+
+        <div class="option">
+          <ha-switch
+            .checked=${this._config.show_knee_zone ?? false}
+            .configValue=${"show_knee_zone"}
+            @change=${this._toggleChanged}
+            title="Shows Top Knee Zone when avg cell voltage is high and delta is rising rapidly (uses a short delta history window)."
+          >
+            <span slot="label">Show "Top Knee Zone" indicator</span>
+          </ha-switch>
+          <div class="description">Shows when avg cell voltage is high and delta is rising rapidly</div>
         </div>
 
         <div class="option">
