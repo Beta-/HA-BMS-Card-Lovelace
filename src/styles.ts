@@ -8,6 +8,14 @@ export const styles = css`
     --discharge-color-dim: rgba(48, 144, 199, 0.2);
     --solar-color: #ffd30f;
     --balancing-color: #ff6333;
+    --balance-charge-color: #ff6b6b;
+    --balance-discharge-color: #339af0;
+    --min-cell-color: #ff6b6b;
+    --max-cell-color: #51cf66;
+    --flow-in-glow: rgba(81, 207, 102, 0.22);
+    --flow-in-border: rgba(81, 207, 102, 0.35);
+    --flow-out-glow: rgba(51, 154, 240, 0.22);
+    --flow-out-border: rgba(51, 154, 240, 0.35);
     --panel-bg: var(--secondary-background-color, rgba(255, 255, 255, 0.05));
     --panel-border: 1px solid var(--divider-color, rgba(255, 255, 255, 0.1));
   }
@@ -143,13 +151,13 @@ export const styles = css`
   }
 
   .soc-segmented.charging .soc-seg.active {
-    stroke: rgba(81, 207, 102, 0.95);
-    filter: drop-shadow(0 0 3px rgba(81, 207, 102, 0.45));
+    stroke: var(--accent-color);
+    filter: drop-shadow(0 0 3px var(--flow-in-glow));
   }
 
   .soc-segmented.discharging .soc-seg.active {
-    stroke: rgba(51, 154, 240, 0.95);
-    filter: drop-shadow(0 0 3px rgba(51, 154, 240, 0.45));
+    stroke: var(--discharge-color);
+    filter: drop-shadow(0 0 3px var(--flow-out-glow));
   }
 
   .soc-bg {
@@ -263,13 +271,13 @@ export const styles = css`
   }
 
   .stat-panel.flow-in {
-    box-shadow: 0 0 18px rgba(81, 207, 102, 0.22);
-    border-color: rgba(81, 207, 102, 0.35);
+    box-shadow: 0 0 18px var(--flow-in-glow);
+    border-color: var(--flow-in-border);
   }
 
   .stat-panel.flow-out {
-    box-shadow: 0 0 18px rgba(51, 154, 240, 0.22);
-    border-color: rgba(51, 154, 240, 0.35);
+    box-shadow: 0 0 18px var(--flow-out-glow);
+    border-color: var(--flow-out-border);
   }
 
   .stat-sparkline {
@@ -308,12 +316,12 @@ export const styles = css`
 
   .stat-panel.flow-in .stat-sparkline-svg .sparkline.current,
   .stat-panel.flow-in .stat-sparkline-svg .sparkline.power {
-    stroke: rgba(81, 207, 102, 0.5);
+    stroke: var(--flow-in-border);
   }
 
   .stat-panel.flow-out .stat-sparkline-svg .sparkline.current,
   .stat-panel.flow-out .stat-sparkline-svg .sparkline.power {
-    stroke: rgba(51, 154, 240, 0.5);
+    stroke: var(--flow-out-border);
   }
 
   .stat-panel:not(.flow-in):not(.flow-out) .stat-sparkline-svg .sparkline.current,
@@ -339,7 +347,7 @@ export const styles = css`
 
   .delta-minmax-panel {
     padding: 10px 8px;
-    grid-column: 2 / span 2;
+    grid-column: 1 / -1;
   }
 
   .delta-minmax-container {
@@ -359,18 +367,41 @@ export const styles = css`
     gap: 4px;
     flex: 1;
     min-width: 0;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .delta-sparkline-svg {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    opacity: 0.55;
+    z-index: 0;
+  }
+
+  .delta-sparkline-svg .sparkline.delta {
+    fill: none;
+    stroke-width: 2;
+    stroke-linejoin: round;
+    stroke-linecap: round;
+    stroke: rgba(255, 255, 255, 0.22);
   }
 
   .delta-label {
     font-size: 0.75em;
     color: var(--secondary-text-color);
     font-weight: bold;
+    position: relative;
+    z-index: 1;
   }
 
   .delta-value {
     font-weight: bold;
     color: var(--primary-text-color);
     font-size: 1.1em;
+    position: relative;
+    z-index: 1;
   }
 
   .delta-divider {
@@ -407,7 +438,7 @@ export const styles = css`
 
   .max-value {
     font-weight: bold;
-    color: #51cf66;
+    color: var(--max-cell-color);
     font-size: 0.9em;
   }
 
@@ -421,7 +452,7 @@ export const styles = css`
 
   .min-value {
     font-weight: bold;
-    color: #ff6b6b;
+    color: var(--min-cell-color);
     font-size: 0.9em;
   }
 
@@ -460,7 +491,7 @@ export const styles = css`
 
   .reactor-grid {
     display: grid;
-    grid-template-columns: repeat(4, 1fr);
+    grid-template-columns: repeat(var(--cell-columns, 4), 1fr);
     gap: 8px;
     position: relative;
   }
@@ -492,9 +523,9 @@ export const styles = css`
   }
 
   .cell.balancing-discharging {
-    border-color: #339af0;
+    border-color: var(--balance-discharge-color);
     animation: cell-balance-pulse 2s ease-in-out infinite;
-    box-shadow: 0 0 15px #339af0;
+    box-shadow: 0 0 15px var(--balance-discharge-color);
     position: relative;
   }
 
@@ -503,7 +534,7 @@ export const styles = css`
     position: absolute;
     inset: -4px;
     border-radius: 14px;
-    border: 2px solid #339af0;
+    border: 2px solid var(--balance-discharge-color);
     opacity: 0.5;
     animation: balance-ring-pulse 2s ease-in-out infinite;
   }
@@ -513,15 +544,15 @@ export const styles = css`
     position: absolute;
     inset: -8px;
     border-radius: 16px;
-    border: 1px solid #339af0;
+    border: 1px solid var(--balance-discharge-color);
     opacity: 0.3;
     animation: balance-ring-pulse 2s ease-in-out infinite 0.5s;
   }
 
   .cell.balancing-charging {
-    border-color: #ff6b6b;
+    border-color: var(--balance-charge-color);
     animation: cell-balance-pulse 2s ease-in-out infinite;
-    box-shadow: 0 0 15px #ff6b6b;
+    box-shadow: 0 0 15px var(--balance-charge-color);
     position: relative;
   }
 
@@ -530,7 +561,7 @@ export const styles = css`
     position: absolute;
     inset: -4px;
     border-radius: 14px;
-    border: 2px solid #ff6b6b;
+    border: 2px solid var(--balance-charge-color);
     opacity: 0.5;
     animation: balance-ring-pulse 2s ease-in-out infinite;
   }
@@ -540,7 +571,7 @@ export const styles = css`
     position: absolute;
     inset: -8px;
     border-radius: 16px;
-    border: 1px solid #ff6b6b;
+    border: 1px solid var(--balance-charge-color);
     opacity: 0.3;
     animation: balance-ring-pulse 2s ease-in-out infinite 0.5s;
   }
@@ -569,13 +600,13 @@ export const styles = css`
   }
 
   .balancing-discharging .balancing-indicator {
-    background: #339af0;
-    box-shadow: 0 0 8px #339af0;
+    background: var(--balance-discharge-color);
+    box-shadow: 0 0 8px var(--balance-discharge-color);
   }
 
   .balancing-charging .balancing-indicator {
-    background: #ff6b6b;
-    box-shadow: 0 0 8px #ff6b6b;
+    background: var(--balance-charge-color);
+    box-shadow: 0 0 8px var(--balance-charge-color);
   }
 
   @keyframes balancing-blink {

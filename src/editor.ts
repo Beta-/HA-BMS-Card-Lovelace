@@ -113,6 +113,7 @@ export class JkBmsReactorCardEditor extends LitElement {
       discharge_threshold_a: config.discharge_threshold_a ?? 0.5,
       show_overlay: config.show_overlay ?? true,
       show_cell_labels: config.show_cell_labels ?? true,
+      cell_columns: config.cell_columns ?? 4,
     };
   }
 
@@ -263,6 +264,46 @@ export class JkBmsReactorCardEditor extends LitElement {
           <div class="description">Entity for cell voltage delta (auto-calculated if not provided)</div>
         </div>
 
+        <div class="option">
+          <label>MOS Temperature Entity (Optional)</label>
+          <ha-entity-picker
+            .hass=${this.hass}
+            .value=${this._config.mos_temp || ''}
+            .configValue=${'mos_temp'}
+            @value-changed=${this._valueChanged}
+            .includeDomains=${['sensor', 'input_number', 'number']}
+            allow-custom-entity
+          ></ha-entity-picker>
+          <div class="description">Entity for MOSFET temperature</div>
+        </div>
+
+        <div class="option">
+          <label>Temperature Sensors (Optional)</label>
+          <div class="cells-list">
+            ${(this._config.temp_sensors || []).map((temp, index) => html`
+              <div class="cell-input">
+                <span style="min-width: 70px;">Temp ${index + 1}:</span>
+                <ha-entity-picker
+                  .hass=${this.hass}
+                  .value=${temp}
+                  .index=${index}
+                  @value-changed=${this._tempSensorChanged}
+                  .includeDomains=${['sensor', 'input_number', 'number']}
+                  allow-custom-entity
+                ></ha-entity-picker>
+                <div class="icon-btn" @click=${() => this._removeTempSensor(index)}>
+                  <ha-icon icon="mdi:delete"></ha-icon>
+                </div>
+              </div>
+            `)}
+          </div>
+          <ha-button class="add-cell-btn" @click=${this._addTempSensor}>
+            <ha-icon icon="mdi:plus"></ha-icon>
+            Add Temp Sensor
+          </ha-button>
+          <div class="description">Add any number of temperature sensor entities</div>
+        </div>
+
         <div class="section-title">Thresholds</div>
 
         <div class="option">
@@ -335,8 +376,121 @@ export class JkBmsReactorCardEditor extends LitElement {
           </ha-switch>
           <div class="description">Use smaller cell display to save space</div>
         </div>
+
+        <div class="option">
+          <label>Cell Voltage Columns</label>
+          <ha-textfield
+            type="number"
+            min="1"
+            max="8"
+            step="1"
+            .value=${this._config.cell_columns ?? 4}
+            .configValue=${'cell_columns'}
+            @input=${this._valueChanged}
+          ></ha-textfield>
+          <div class="description">Number of columns in the cell voltage grid (default: 4)</div>
+        </div>
+
+        <div class="section-title">Colors (Optional)</div>
+
+        <div class="option">
+          <label>Accent / Charging Color</label>
+          <ha-textfield
+            .value=${this._config.color_accent || ''}
+            .configValue=${'color_accent'}
+            @input=${this._valueChanged}
+            placeholder="#41cd52"
+          ></ha-textfield>
+          <div class="description">Used for charging glow + SOC segments</div>
+        </div>
+
+        <div class="option">
+          <label>Charge Line/Dots Color</label>
+          <ha-textfield
+            .value=${this._config.color_charge || ''}
+            .configValue=${'color_charge'}
+            @input=${this._valueChanged}
+            placeholder="#ffd30f"
+          ></ha-textfield>
+        </div>
+
+        <div class="option">
+          <label>Discharge Color</label>
+          <ha-textfield
+            .value=${this._config.color_discharge || ''}
+            .configValue=${'color_discharge'}
+            @input=${this._valueChanged}
+            placeholder="#3090c7"
+          ></ha-textfield>
+          <div class="description">Used for discharge glow + SOC segments</div>
+        </div>
+
+        <div class="option">
+          <label>Balance Charge Color (Cell Charging)</label>
+          <ha-textfield
+            .value=${this._config.color_balance_charge || ''}
+            .configValue=${'color_balance_charge'}
+            @input=${this._valueChanged}
+            placeholder="#ff6b6b"
+          ></ha-textfield>
+        </div>
+
+        <div class="option">
+          <label>Balance Discharge Color (Cell Discharging)</label>
+          <ha-textfield
+            .value=${this._config.color_balance_discharge || ''}
+            .configValue=${'color_balance_discharge'}
+            @input=${this._valueChanged}
+            placeholder="#339af0"
+          ></ha-textfield>
+        </div>
+
+        <div class="option">
+          <label>Min Cell Color</label>
+          <ha-textfield
+            .value=${this._config.color_min_cell || ''}
+            .configValue=${'color_min_cell'}
+            @input=${this._valueChanged}
+            placeholder="#ff6b6b"
+          ></ha-textfield>
+        </div>
+
+        <div class="option">
+          <label>Max Cell Color</label>
+          <ha-textfield
+            .value=${this._config.color_max_cell || ''}
+            .configValue=${'color_max_cell'}
+            @input=${this._valueChanged}
+            placeholder="#51cf66"
+          ></ha-textfield>
+        </div>
       </div>
     `;
+  }
+
+  private _addTempSensor() {
+    const temp_sensors = [...(this._config.temp_sensors || [])];
+    temp_sensors.push('');
+    this._config = { ...this._config, temp_sensors };
+    this._configChanged();
+  }
+
+  private _removeTempSensor(index: number) {
+    const temp_sensors = [...(this._config.temp_sensors || [])];
+    temp_sensors.splice(index, 1);
+    this._config = { ...this._config, temp_sensors };
+    this._configChanged();
+  }
+
+  private _tempSensorChanged(ev: CustomEvent) {
+    const target = ev.target as any;
+    const index = target.index;
+    const value = ev.detail.value;
+
+    const temp_sensors = [...(this._config.temp_sensors || [])];
+    temp_sensors[index] = value;
+    this._config = { ...this._config, temp_sensors };
+    this._configChanged();
   }
 
   private _renderCellsPrefix() {

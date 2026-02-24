@@ -41,6 +41,21 @@ export interface JkBmsReactorCardConfig {
     show_overlay?: boolean;
     show_cell_labels?: boolean;
     compact_cells?: boolean;
+
+    cell_columns?: number;
+
+    // Optional temperatures
+    mos_temp?: string;
+    temp_sensors?: string[];
+
+    // Optional color overrides (CSS color strings)
+    color_accent?: string;
+    color_charge?: string;
+    color_discharge?: string;
+    color_balance_charge?: string;
+    color_balance_discharge?: string;
+    color_min_cell?: string;
+    color_max_cell?: string;
 }
 
 /**
@@ -77,4 +92,7 @@ export interface PackState {
     balanceCurrent: number | null;
     isCharging: boolean;
     isDischarging: boolean;
+
+    mosTemp?: number | null;
+    temps?: Array<{ index: number; temp: number | null }>;
 }

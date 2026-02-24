@@ -12,6 +12,7 @@ export class JkBmsReactorCard extends LitElement {
     voltage: [] as number[],
     current: [] as number[],
     power: [] as number[],
+    delta: [] as number[],
   };
 
   private _lastSampleTs = 0;
@@ -41,10 +42,62 @@ export class JkBmsReactorCard extends LitElement {
       show_overlay: config.show_overlay ?? true,
       show_cell_labels: config.show_cell_labels ?? true,
       compact_cells: config.compact_cells ?? false,
+      cell_columns: config.cell_columns ?? 4,
       balance_threshold_v: config.balance_threshold_v ?? 0.01,
       charge_threshold_a: config.charge_threshold_a ?? 0.5,
       discharge_threshold_a: config.discharge_threshold_a ?? 0.5,
     };
+  }
+
+  private _sanitizeCssToken(value: string): string {
+    // Prevent breaking out of a style attribute
+    return value.replace(/[;\n\r]/g, '').trim();
+  }
+
+  private _hexToRgba(hex: string, alpha: number): string | null {
+    const cleaned = hex.trim();
+    const m = cleaned.match(/^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/);
+    if (!m) return null;
+    let h = m[1];
+    if (h.length === 3) {
+      h = h.split('').map(c => c + c).join('');
+    }
+    const r = parseInt(h.slice(0, 2), 16);
+    const g = parseInt(h.slice(2, 4), 16);
+    const b = parseInt(h.slice(4, 6), 16);
+    return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+  }
+
+  private _buildCardStyle(): string {
+    const c = this._config;
+    const cssVars: Record<string, string | undefined> = {
+      '--cell-columns': c.cell_columns ? String(Math.max(1, Math.min(8, c.cell_columns))) : undefined,
+      '--accent-color': c.color_accent ? this._sanitizeCssToken(c.color_accent) : undefined,
+      '--solar-color': c.color_charge ? this._sanitizeCssToken(c.color_charge) : undefined,
+      '--discharge-color': c.color_discharge ? this._sanitizeCssToken(c.color_discharge) : undefined,
+      '--balance-charge-color': c.color_balance_charge ? this._sanitizeCssToken(c.color_balance_charge) : undefined,
+      '--balance-discharge-color': c.color_balance_discharge ? this._sanitizeCssToken(c.color_balance_discharge) : undefined,
+      '--min-cell-color': c.color_min_cell ? this._sanitizeCssToken(c.color_min_cell) : undefined,
+      '--max-cell-color': c.color_max_cell ? this._sanitizeCssToken(c.color_max_cell) : undefined,
+    };
+
+    // Derive glow/border colors from hex if possible
+    const accent = c.color_accent ? this._sanitizeCssToken(c.color_accent) : '';
+    const discharge = c.color_discharge ? this._sanitizeCssToken(c.color_discharge) : '';
+    const flowInGlow = this._hexToRgba(accent, 0.22);
+    const flowInBorder = this._hexToRgba(accent, 0.35);
+    const flowOutGlow = this._hexToRgba(discharge, 0.22);
+    const flowOutBorder = this._hexToRgba(discharge, 0.35);
+
+    if (flowInGlow) cssVars['--flow-in-glow'] = flowInGlow;
+    if (flowInBorder) cssVars['--flow-in-border'] = flowInBorder;
+    if (flowOutGlow) cssVars['--flow-out-glow'] = flowOutGlow;
+    if (flowOutBorder) cssVars['--flow-out-border'] = flowOutBorder;
+
+    return Object.entries(cssVars)
+      .filter(([, v]) => v !== undefined && v !== '')
+      .map(([k, v]) => `${k}: ${v}`)
+      .join('; ');
   }
 
   public getCardSize(): number {
@@ -98,6 +151,7 @@ export class JkBmsReactorCard extends LitElement {
     push('voltage', voltage);
     push('current', current);
     push('power', power);
+    push('delta', packState.delta);
 
     // Ensure sparklines repaint even if no other state changed
     this.requestUpdate();
@@ -118,7 +172,9 @@ export class JkBmsReactorCard extends LitElement {
     if (!this._config?.pack_voltage || !this._config?.current) return;
 
     const start = new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString();
-    const entityIds = `${this._config.pack_voltage},${this._config.current}`;
+    const entityIds = [this._config.pack_voltage, this._config.current, this._config.delta]
+      .filter(Boolean)
+      .join(',');
 
     const path = `history/period/${start}`;
     const result = await this.hass.callApi<any>('GET', path, {
@@ -153,9 +209,13 @@ export class JkBmsReactorCard extends LitElement {
 
     const vSeries = this._downsample(perEntity[this._config.pack_voltage] ?? [], this._historyMax);
     const cSeries = this._downsample(perEntity[this._config.current] ?? [], this._historyMax);
+    const dSeries = this._config.delta
+      ? this._downsample(perEntity[this._config.delta] ?? [], this._historyMax)
+      : [];
 
     if (vSeries.length) this._history.voltage = vSeries;
     if (cSeries.length) this._history.current = cSeries;
+    if (dSeries.length) this._history.delta = dSeries;
 
     const n = Math.min(this._history.voltage.length, this._history.current.length);
     if (n > 0) {
@@ -172,15 +232,44 @@ export class JkBmsReactorCard extends LitElement {
   private _sparklinePoints(values: number[], width = 100, height = 30): string {
     if (!values.length) return '';
 
-    const min = Math.min(...values);
-    const max = Math.max(...values);
+    const smooth = (arr: number[], window = 3) => {
+      if (arr.length < 3) return arr;
+      const half = Math.floor(window / 2);
+      return arr.map((_, i) => {
+        let sum = 0;
+        let count = 0;
+        for (let j = i - half; j <= i + half; j++) {
+          if (j < 0 || j >= arr.length) continue;
+          sum += arr[j];
+          count++;
+        }
+        return count ? sum / count : arr[i];
+      });
+    };
+
+    const percentileMinMax = (arr: number[], lowP = 0.1, highP = 0.9) => {
+      const sorted = [...arr].sort((a, b) => a - b);
+      const n = sorted.length;
+      const lo = sorted[Math.max(0, Math.floor((n - 1) * lowP))];
+      const hi = sorted[Math.max(0, Math.ceil((n - 1) * highP))];
+      if (!Number.isFinite(lo) || !Number.isFinite(hi)) return { min: 0, max: 1 };
+      if (hi === lo) return { min: lo - 1, max: hi + 1 };
+
+      // Add a little padding so the line doesn't hug the edges
+      const pad = (hi - lo) * 0.08;
+      return { min: lo - pad, max: hi + pad };
+    };
+
+    const smoothed = smooth(values, 3);
+    const { min, max } = percentileMinMax(smoothed, 0.1, 0.9);
     const span = max - min;
 
     const stepX = values.length > 1 ? width / (values.length - 1) : 0;
-    return values
+    return smoothed
       .map((v, i) => {
         const x = i * stepX;
-        const t = span === 0 ? 0.5 : (v - min) / span;
+        const clamped = Math.min(max, Math.max(min, v));
+        const t = span === 0 ? 0.5 : (clamped - min) / span;
         const y = height - t * height;
         return `${x.toFixed(2)},${y.toFixed(2)}`;
       })
@@ -198,13 +287,15 @@ export class JkBmsReactorCard extends LitElement {
       return html``;
     }
 
+    const cardStyle = this._buildCardStyle();
+
     // Check if configuration is incomplete
     const hasRequiredConfig = this._config.pack_voltage && this._config.current && this._config.soc;
     const hasCellsConfig = this._config.cells || (this._config.cells_prefix && this._config.cells_count);
 
     if (!hasRequiredConfig || !hasCellsConfig) {
       return html`
-                <ha-card>
+                <ha-card style=${cardStyle}>
                     <div class="card-content" style="padding: 24px; text-align: center;">
                         <ha-icon icon="mdi:alert-circle-outline" style="font-size: 48px; color: var(--warning-color);"></ha-icon>
                         <h3 style="margin: 16px 0 8px;">Configuration Required</h3>
@@ -225,7 +316,7 @@ export class JkBmsReactorCard extends LitElement {
     const packState = computePackState(this.hass, this._config);
 
     return html`
-            <ha-card>
+        <ha-card style=${cardStyle}>
                 <div class="card-content">
                     ${this._renderPackInfo(packState)}
                     ${this._renderReactor(packState)}
@@ -394,9 +485,11 @@ export class JkBmsReactorCard extends LitElement {
           <div class="stat-value">${formatNumber(Math.abs((packState.voltage ?? 0) * (packState.current ?? 0)), 1)} W</div>
         </div>
         <div class="stat-panel delta-minmax-panel">
-          <div class="stat-sparkline"></div>
           <div class="delta-minmax-container">
             <div class="delta-left">
+              <svg class="delta-sparkline-svg" viewBox="0 0 100 30" preserveAspectRatio="none" aria-hidden="true">
+                <polyline class="sparkline delta" points="${this._sparklinePoints(this._history.delta)}"></polyline>
+              </svg>
               <div class="delta-label">Delta</div>
               <div class="delta-value">${formatNumber(packState.delta, 3)}V</div>
             </div>
@@ -414,6 +507,20 @@ export class JkBmsReactorCard extends LitElement {
             </div>
           </div>
         </div>
+
+        ${this._config.mos_temp ? html`
+          <div class="stat-panel">
+            <div class="stat-label">MOS Temp</div>
+            <div class="stat-value">${formatNumber(packState.mosTemp ?? null, 1)} °C</div>
+          </div>
+        ` : ''}
+
+        ${(this._config.temp_sensors ?? []).length ? (packState.temps ?? []).map(t => html`
+          <div class="stat-panel">
+            <div class="stat-label">Temp ${t.index + 1}</div>
+            <div class="stat-value">${formatNumber(t.temp ?? null, 1)} °C</div>
+          </div>
+        `) : ''}
       </div>
     `;
   }

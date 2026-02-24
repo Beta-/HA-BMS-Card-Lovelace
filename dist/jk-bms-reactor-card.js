@@ -630,26 +630,30 @@ function getBalancingCells(hass, config, cellVoltages, current, delta, balanceCu
     return cellVoltages.map(() => ({ isBalancing: false, direction: null }));
   }
   const hasDirection = balanceCurrent !== null && balanceCurrent !== void 0 && Math.abs(balanceCurrent) >= 1e-3;
-  const minVoltage = Math.min(...cellVoltages);
-  const maxVoltage = Math.max(...cellVoltages);
-  const voltageDelta = maxVoltage - minVoltage;
-  if (voltageDelta < 0.01) {
+  const valid = cellVoltages.map((v2, i2) => ({ v: v2, i: i2 })).filter((x2) => x2.v > 0);
+  if (valid.length < 2) {
     return cellVoltages.map(() => ({ isBalancing: false, direction: null }));
   }
-  return cellVoltages.map((voltage) => {
-    const voltageDeviation = voltage - minVoltage;
-    const isHigh = voltageDeviation > voltageDelta * 0.7;
-    const isLow = voltageDeviation < voltageDelta * 0.3;
-    if (!hasDirection) {
-      return { isBalancing: isHigh, direction: null };
-    }
-    if (balanceCurrent > 0 && isHigh) {
-      return { isBalancing: true, direction: "discharging" };
-    } else if (balanceCurrent < 0 && isLow) {
-      return { isBalancing: true, direction: "charging" };
-    }
-    return { isBalancing: false, direction: null };
-  });
+  const min = valid.reduce((a2, b2) => b2.v < a2.v ? b2 : a2);
+  const max = valid.reduce((a2, b2) => b2.v > a2.v ? b2 : a2);
+  const voltageDelta = max.v - min.v;
+  const threshold = config.balance_threshold_v ?? 0.01;
+  if (voltageDelta < threshold) {
+    return cellVoltages.map(() => ({ isBalancing: false, direction: null }));
+  }
+  const out = cellVoltages.map(() => ({ isBalancing: false, direction: null }));
+  if (!hasDirection) {
+    out[max.i] = { isBalancing: true, direction: null };
+    return out;
+  }
+  if (balanceCurrent >= 0) {
+    out[max.i] = { isBalancing: true, direction: "discharging" };
+    out[min.i] = { isBalancing: true, direction: "charging" };
+  } else {
+    out[max.i] = { isBalancing: true, direction: "charging" };
+    out[min.i] = { isBalancing: true, direction: "discharging" };
+  }
+  return out;
 }
 function computePackState(hass, config) {
   const voltage = getNumericValue(hass, config.pack_voltage);
@@ -682,6 +686,11 @@ function computePackState(hass, config) {
   const dischargeThreshold = config.discharge_threshold_a ?? 0.5;
   const isCharging = current !== null && current > chargeThreshold;
   const isDischarging = current !== null && current < -dischargeThreshold;
+  const mosTemp = config.mos_temp ? getNumericValue(hass, config.mos_temp) : null;
+  const temps = (config.temp_sensors ?? []).map((entityId, index) => ({
+    index,
+    temp: entityId ? getNumericValue(hass, entityId) : null
+  }));
   return {
     voltage,
     current,
@@ -693,7 +702,9 @@ function computePackState(hass, config) {
     isBalancing,
     balanceCurrent,
     isCharging,
-    isDischarging
+    isDischarging,
+    mosTemp,
+    temps
   };
 }
 function formatNumber(value, decimals = 2) {
@@ -708,6 +719,14 @@ const styles = i$3`
     --discharge-color-dim: rgba(48, 144, 199, 0.2);
     --solar-color: #ffd30f;
     --balancing-color: #ff6333;
+    --balance-charge-color: #ff6b6b;
+    --balance-discharge-color: #339af0;
+    --min-cell-color: #ff6b6b;
+    --max-cell-color: #51cf66;
+    --flow-in-glow: rgba(81, 207, 102, 0.22);
+    --flow-in-border: rgba(81, 207, 102, 0.35);
+    --flow-out-glow: rgba(51, 154, 240, 0.22);
+    --flow-out-border: rgba(51, 154, 240, 0.35);
     --panel-bg: var(--secondary-background-color, rgba(255, 255, 255, 0.05));
     --panel-border: 1px solid var(--divider-color, rgba(255, 255, 255, 0.1));
   }
@@ -843,13 +862,13 @@ const styles = i$3`
   }
 
   .soc-segmented.charging .soc-seg.active {
-    stroke: rgba(81, 207, 102, 0.95);
-    filter: drop-shadow(0 0 3px rgba(81, 207, 102, 0.45));
+    stroke: var(--accent-color);
+    filter: drop-shadow(0 0 3px var(--flow-in-glow));
   }
 
   .soc-segmented.discharging .soc-seg.active {
-    stroke: rgba(51, 154, 240, 0.95);
-    filter: drop-shadow(0 0 3px rgba(51, 154, 240, 0.45));
+    stroke: var(--discharge-color);
+    filter: drop-shadow(0 0 3px var(--flow-out-glow));
   }
 
   .soc-bg {
@@ -963,13 +982,13 @@ const styles = i$3`
   }
 
   .stat-panel.flow-in {
-    box-shadow: 0 0 18px rgba(81, 207, 102, 0.22);
-    border-color: rgba(81, 207, 102, 0.35);
+    box-shadow: 0 0 18px var(--flow-in-glow);
+    border-color: var(--flow-in-border);
   }
 
   .stat-panel.flow-out {
-    box-shadow: 0 0 18px rgba(51, 154, 240, 0.22);
-    border-color: rgba(51, 154, 240, 0.35);
+    box-shadow: 0 0 18px var(--flow-out-glow);
+    border-color: var(--flow-out-border);
   }
 
   .stat-sparkline {
@@ -1008,12 +1027,12 @@ const styles = i$3`
 
   .stat-panel.flow-in .stat-sparkline-svg .sparkline.current,
   .stat-panel.flow-in .stat-sparkline-svg .sparkline.power {
-    stroke: rgba(81, 207, 102, 0.5);
+    stroke: var(--flow-in-border);
   }
 
   .stat-panel.flow-out .stat-sparkline-svg .sparkline.current,
   .stat-panel.flow-out .stat-sparkline-svg .sparkline.power {
-    stroke: rgba(51, 154, 240, 0.5);
+    stroke: var(--flow-out-border);
   }
 
   .stat-panel:not(.flow-in):not(.flow-out) .stat-sparkline-svg .sparkline.current,
@@ -1039,7 +1058,7 @@ const styles = i$3`
 
   .delta-minmax-panel {
     padding: 10px 8px;
-    grid-column: 2 / span 2;
+    grid-column: 1 / -1;
   }
 
   .delta-minmax-container {
@@ -1059,18 +1078,41 @@ const styles = i$3`
     gap: 4px;
     flex: 1;
     min-width: 0;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .delta-sparkline-svg {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    opacity: 0.55;
+    z-index: 0;
+  }
+
+  .delta-sparkline-svg .sparkline.delta {
+    fill: none;
+    stroke-width: 2;
+    stroke-linejoin: round;
+    stroke-linecap: round;
+    stroke: rgba(255, 255, 255, 0.22);
   }
 
   .delta-label {
     font-size: 0.75em;
     color: var(--secondary-text-color);
     font-weight: bold;
+    position: relative;
+    z-index: 1;
   }
 
   .delta-value {
     font-weight: bold;
     color: var(--primary-text-color);
     font-size: 1.1em;
+    position: relative;
+    z-index: 1;
   }
 
   .delta-divider {
@@ -1107,7 +1149,7 @@ const styles = i$3`
 
   .max-value {
     font-weight: bold;
-    color: #51cf66;
+    color: var(--max-cell-color);
     font-size: 0.9em;
   }
 
@@ -1121,7 +1163,7 @@ const styles = i$3`
 
   .min-value {
     font-weight: bold;
-    color: #ff6b6b;
+    color: var(--min-cell-color);
     font-size: 0.9em;
   }
 
@@ -1160,7 +1202,7 @@ const styles = i$3`
 
   .reactor-grid {
     display: grid;
-    grid-template-columns: repeat(4, 1fr);
+    grid-template-columns: repeat(var(--cell-columns, 4), 1fr);
     gap: 8px;
     position: relative;
   }
@@ -1192,9 +1234,9 @@ const styles = i$3`
   }
 
   .cell.balancing-discharging {
-    border-color: #339af0;
+    border-color: var(--balance-discharge-color);
     animation: cell-balance-pulse 2s ease-in-out infinite;
-    box-shadow: 0 0 15px #339af0;
+    box-shadow: 0 0 15px var(--balance-discharge-color);
     position: relative;
   }
 
@@ -1203,7 +1245,7 @@ const styles = i$3`
     position: absolute;
     inset: -4px;
     border-radius: 14px;
-    border: 2px solid #339af0;
+    border: 2px solid var(--balance-discharge-color);
     opacity: 0.5;
     animation: balance-ring-pulse 2s ease-in-out infinite;
   }
@@ -1213,15 +1255,15 @@ const styles = i$3`
     position: absolute;
     inset: -8px;
     border-radius: 16px;
-    border: 1px solid #339af0;
+    border: 1px solid var(--balance-discharge-color);
     opacity: 0.3;
     animation: balance-ring-pulse 2s ease-in-out infinite 0.5s;
   }
 
   .cell.balancing-charging {
-    border-color: #ff6b6b;
+    border-color: var(--balance-charge-color);
     animation: cell-balance-pulse 2s ease-in-out infinite;
-    box-shadow: 0 0 15px #ff6b6b;
+    box-shadow: 0 0 15px var(--balance-charge-color);
     position: relative;
   }
 
@@ -1230,7 +1272,7 @@ const styles = i$3`
     position: absolute;
     inset: -4px;
     border-radius: 14px;
-    border: 2px solid #ff6b6b;
+    border: 2px solid var(--balance-charge-color);
     opacity: 0.5;
     animation: balance-ring-pulse 2s ease-in-out infinite;
   }
@@ -1240,7 +1282,7 @@ const styles = i$3`
     position: absolute;
     inset: -8px;
     border-radius: 16px;
-    border: 1px solid #ff6b6b;
+    border: 1px solid var(--balance-charge-color);
     opacity: 0.3;
     animation: balance-ring-pulse 2s ease-in-out infinite 0.5s;
   }
@@ -1269,13 +1311,13 @@ const styles = i$3`
   }
 
   .balancing-discharging .balancing-indicator {
-    background: #339af0;
-    box-shadow: 0 0 8px #339af0;
+    background: var(--balance-discharge-color);
+    box-shadow: 0 0 8px var(--balance-discharge-color);
   }
 
   .balancing-charging .balancing-indicator {
-    background: #ff6b6b;
-    box-shadow: 0 0 8px #ff6b6b;
+    background: var(--balance-charge-color);
+    box-shadow: 0 0 8px var(--balance-charge-color);
   }
 
   @keyframes balancing-blink {
@@ -1452,7 +1494,8 @@ class JkBmsReactorCard extends i {
     this._history = {
       voltage: [],
       current: [],
-      power: []
+      power: [],
+      delta: []
     };
     this._lastSampleTs = 0;
     this._sampleIntervalMs = 2e3;
@@ -1477,10 +1520,51 @@ class JkBmsReactorCard extends i {
       show_overlay: config.show_overlay ?? true,
       show_cell_labels: config.show_cell_labels ?? true,
       compact_cells: config.compact_cells ?? false,
+      cell_columns: config.cell_columns ?? 4,
       balance_threshold_v: config.balance_threshold_v ?? 0.01,
       charge_threshold_a: config.charge_threshold_a ?? 0.5,
       discharge_threshold_a: config.discharge_threshold_a ?? 0.5
     };
+  }
+  _sanitizeCssToken(value) {
+    return value.replace(/[;\n\r]/g, "").trim();
+  }
+  _hexToRgba(hex, alpha) {
+    const cleaned = hex.trim();
+    const m2 = cleaned.match(/^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/);
+    if (!m2) return null;
+    let h2 = m2[1];
+    if (h2.length === 3) {
+      h2 = h2.split("").map((c2) => c2 + c2).join("");
+    }
+    const r2 = parseInt(h2.slice(0, 2), 16);
+    const g2 = parseInt(h2.slice(2, 4), 16);
+    const b2 = parseInt(h2.slice(4, 6), 16);
+    return `rgba(${r2}, ${g2}, ${b2}, ${alpha})`;
+  }
+  _buildCardStyle() {
+    const c2 = this._config;
+    const cssVars = {
+      "--cell-columns": c2.cell_columns ? String(Math.max(1, Math.min(8, c2.cell_columns))) : void 0,
+      "--accent-color": c2.color_accent ? this._sanitizeCssToken(c2.color_accent) : void 0,
+      "--solar-color": c2.color_charge ? this._sanitizeCssToken(c2.color_charge) : void 0,
+      "--discharge-color": c2.color_discharge ? this._sanitizeCssToken(c2.color_discharge) : void 0,
+      "--balance-charge-color": c2.color_balance_charge ? this._sanitizeCssToken(c2.color_balance_charge) : void 0,
+      "--balance-discharge-color": c2.color_balance_discharge ? this._sanitizeCssToken(c2.color_balance_discharge) : void 0,
+      "--min-cell-color": c2.color_min_cell ? this._sanitizeCssToken(c2.color_min_cell) : void 0,
+      "--max-cell-color": c2.color_max_cell ? this._sanitizeCssToken(c2.color_max_cell) : void 0
+    };
+    const accent = c2.color_accent ? this._sanitizeCssToken(c2.color_accent) : "";
+    const discharge = c2.color_discharge ? this._sanitizeCssToken(c2.color_discharge) : "";
+    const flowInGlow = this._hexToRgba(accent, 0.22);
+    const flowInBorder = this._hexToRgba(accent, 0.35);
+    const flowOutGlow = this._hexToRgba(discharge, 0.22);
+    const flowOutBorder = this._hexToRgba(discharge, 0.35);
+    if (flowInGlow) cssVars["--flow-in-glow"] = flowInGlow;
+    if (flowInBorder) cssVars["--flow-in-border"] = flowInBorder;
+    if (flowOutGlow) cssVars["--flow-out-glow"] = flowOutGlow;
+    if (flowOutBorder) cssVars["--flow-out-border"] = flowOutBorder;
+    return Object.entries(cssVars).filter(([, v2]) => v2 !== void 0 && v2 !== "").map(([k2, v2]) => `${k2}: ${v2}`).join("; ");
   }
   getCardSize() {
     return 6;
@@ -1523,6 +1607,7 @@ class JkBmsReactorCard extends i {
     push("voltage", voltage);
     push("current", current);
     push("power", power);
+    push("delta", packState.delta);
     this.requestUpdate();
   }
   _downsample(values, max) {
@@ -1539,7 +1624,7 @@ class JkBmsReactorCard extends i {
     if (!((_a2 = this.hass) == null ? void 0 : _a2.callApi)) return;
     if (!((_b = this._config) == null ? void 0 : _b.pack_voltage) || !((_c = this._config) == null ? void 0 : _c.current)) return;
     const start = new Date(Date.now() - 2 * 60 * 60 * 1e3).toISOString();
-    const entityIds = `${this._config.pack_voltage},${this._config.current}`;
+    const entityIds = [this._config.pack_voltage, this._config.current, this._config.delta].filter(Boolean).join(",");
     const path = `history/period/${start}`;
     const result = await this.hass.callApi("GET", path, {
       filter_entity_id: entityIds,
@@ -1568,8 +1653,10 @@ class JkBmsReactorCard extends i {
     }
     const vSeries = this._downsample(perEntity[this._config.pack_voltage] ?? [], this._historyMax);
     const cSeries = this._downsample(perEntity[this._config.current] ?? [], this._historyMax);
+    const dSeries = this._config.delta ? this._downsample(perEntity[this._config.delta] ?? [], this._historyMax) : [];
     if (vSeries.length) this._history.voltage = vSeries;
     if (cSeries.length) this._history.current = cSeries;
+    if (dSeries.length) this._history.delta = dSeries;
     const n3 = Math.min(this._history.voltage.length, this._history.current.length);
     if (n3 > 0) {
       const p2 = [];
@@ -1582,13 +1669,38 @@ class JkBmsReactorCard extends i {
   }
   _sparklinePoints(values, width = 100, height = 30) {
     if (!values.length) return "";
-    const min = Math.min(...values);
-    const max = Math.max(...values);
+    const smooth = (arr, window2 = 3) => {
+      if (arr.length < 3) return arr;
+      const half = Math.floor(window2 / 2);
+      return arr.map((_2, i2) => {
+        let sum = 0;
+        let count = 0;
+        for (let j = i2 - half; j <= i2 + half; j++) {
+          if (j < 0 || j >= arr.length) continue;
+          sum += arr[j];
+          count++;
+        }
+        return count ? sum / count : arr[i2];
+      });
+    };
+    const percentileMinMax = (arr, lowP = 0.1, highP = 0.9) => {
+      const sorted = [...arr].sort((a2, b2) => a2 - b2);
+      const n3 = sorted.length;
+      const lo = sorted[Math.max(0, Math.floor((n3 - 1) * lowP))];
+      const hi = sorted[Math.max(0, Math.ceil((n3 - 1) * highP))];
+      if (!Number.isFinite(lo) || !Number.isFinite(hi)) return { min: 0, max: 1 };
+      if (hi === lo) return { min: lo - 1, max: hi + 1 };
+      const pad = (hi - lo) * 0.08;
+      return { min: lo - pad, max: hi + pad };
+    };
+    const smoothed = smooth(values, 3);
+    const { min, max } = percentileMinMax(smoothed, 0.1, 0.9);
     const span = max - min;
     const stepX = values.length > 1 ? width / (values.length - 1) : 0;
-    return values.map((v2, i2) => {
+    return smoothed.map((v2, i2) => {
       const x2 = i2 * stepX;
-      const t2 = span === 0 ? 0.5 : (v2 - min) / span;
+      const clamped = Math.min(max, Math.max(min, v2));
+      const t2 = span === 0 ? 0.5 : (clamped - min) / span;
       const y3 = height - t2 * height;
       return `${x2.toFixed(2)},${y3.toFixed(2)}`;
     }).join(" ");
@@ -1602,11 +1714,12 @@ class JkBmsReactorCard extends i {
     if (!this.hass || !this._config) {
       return b``;
     }
+    const cardStyle = this._buildCardStyle();
     const hasRequiredConfig = this._config.pack_voltage && this._config.current && this._config.soc;
     const hasCellsConfig = this._config.cells || this._config.cells_prefix && this._config.cells_count;
     if (!hasRequiredConfig || !hasCellsConfig) {
       return b`
-                <ha-card>
+                <ha-card style=${cardStyle}>
                     <div class="card-content" style="padding: 24px; text-align: center;">
                         <ha-icon icon="mdi:alert-circle-outline" style="font-size: 48px; color: var(--warning-color);"></ha-icon>
                         <h3 style="margin: 16px 0 8px;">Configuration Required</h3>
@@ -1625,7 +1738,7 @@ class JkBmsReactorCard extends i {
     }
     const packState = computePackState(this.hass, this._config);
     return b`
-            <ha-card>
+        <ha-card style=${cardStyle}>
                 <div class="card-content">
                     ${this._renderPackInfo(packState)}
                     ${this._renderReactor(packState)}
@@ -1785,9 +1898,11 @@ class JkBmsReactorCard extends i {
           <div class="stat-value">${formatNumber(Math.abs((packState.voltage ?? 0) * (packState.current ?? 0)), 1)} W</div>
         </div>
         <div class="stat-panel delta-minmax-panel">
-          <div class="stat-sparkline"></div>
           <div class="delta-minmax-container">
             <div class="delta-left">
+              <svg class="delta-sparkline-svg" viewBox="0 0 100 30" preserveAspectRatio="none" aria-hidden="true">
+                <polyline class="sparkline delta" points="${this._sparklinePoints(this._history.delta)}"></polyline>
+              </svg>
               <div class="delta-label">Delta</div>
               <div class="delta-value">${formatNumber(packState.delta, 3)}V</div>
             </div>
@@ -1805,6 +1920,20 @@ class JkBmsReactorCard extends i {
             </div>
           </div>
         </div>
+
+        ${this._config.mos_temp ? b`
+          <div class="stat-panel">
+            <div class="stat-label">MOS Temp</div>
+            <div class="stat-value">${formatNumber(packState.mosTemp ?? null, 1)} °C</div>
+          </div>
+        ` : ""}
+
+        ${(this._config.temp_sensors ?? []).length ? (packState.temps ?? []).map((t2) => b`
+          <div class="stat-panel">
+            <div class="stat-label">Temp ${t2.index + 1}</div>
+            <div class="stat-value">${formatNumber(t2.temp ?? null, 1)} °C</div>
+          </div>
+        `) : ""}
       </div>
     `;
   }
@@ -1991,7 +2120,8 @@ class JkBmsReactorCardEditor extends i {
       charge_threshold_a: config.charge_threshold_a ?? 0.5,
       discharge_threshold_a: config.discharge_threshold_a ?? 0.5,
       show_overlay: config.show_overlay ?? true,
-      show_cell_labels: config.show_cell_labels ?? true
+      show_cell_labels: config.show_cell_labels ?? true,
+      cell_columns: config.cell_columns ?? 4
     };
   }
   render() {
@@ -2137,6 +2267,46 @@ class JkBmsReactorCardEditor extends i {
           <div class="description">Entity for cell voltage delta (auto-calculated if not provided)</div>
         </div>
 
+        <div class="option">
+          <label>MOS Temperature Entity (Optional)</label>
+          <ha-entity-picker
+            .hass=${this.hass}
+            .value=${this._config.mos_temp || ""}
+            .configValue=${"mos_temp"}
+            @value-changed=${this._valueChanged}
+            .includeDomains=${["sensor", "input_number", "number"]}
+            allow-custom-entity
+          ></ha-entity-picker>
+          <div class="description">Entity for MOSFET temperature</div>
+        </div>
+
+        <div class="option">
+          <label>Temperature Sensors (Optional)</label>
+          <div class="cells-list">
+            ${(this._config.temp_sensors || []).map((temp, index) => b`
+              <div class="cell-input">
+                <span style="min-width: 70px;">Temp ${index + 1}:</span>
+                <ha-entity-picker
+                  .hass=${this.hass}
+                  .value=${temp}
+                  .index=${index}
+                  @value-changed=${this._tempSensorChanged}
+                  .includeDomains=${["sensor", "input_number", "number"]}
+                  allow-custom-entity
+                ></ha-entity-picker>
+                <div class="icon-btn" @click=${() => this._removeTempSensor(index)}>
+                  <ha-icon icon="mdi:delete"></ha-icon>
+                </div>
+              </div>
+            `)}
+          </div>
+          <ha-button class="add-cell-btn" @click=${this._addTempSensor}>
+            <ha-icon icon="mdi:plus"></ha-icon>
+            Add Temp Sensor
+          </ha-button>
+          <div class="description">Add any number of temperature sensor entities</div>
+        </div>
+
         <div class="section-title">Thresholds</div>
 
         <div class="option">
@@ -2209,8 +2379,117 @@ class JkBmsReactorCardEditor extends i {
           </ha-switch>
           <div class="description">Use smaller cell display to save space</div>
         </div>
+
+        <div class="option">
+          <label>Cell Voltage Columns</label>
+          <ha-textfield
+            type="number"
+            min="1"
+            max="8"
+            step="1"
+            .value=${this._config.cell_columns ?? 4}
+            .configValue=${"cell_columns"}
+            @input=${this._valueChanged}
+          ></ha-textfield>
+          <div class="description">Number of columns in the cell voltage grid (default: 4)</div>
+        </div>
+
+        <div class="section-title">Colors (Optional)</div>
+
+        <div class="option">
+          <label>Accent / Charging Color</label>
+          <ha-textfield
+            .value=${this._config.color_accent || ""}
+            .configValue=${"color_accent"}
+            @input=${this._valueChanged}
+            placeholder="#41cd52"
+          ></ha-textfield>
+          <div class="description">Used for charging glow + SOC segments</div>
+        </div>
+
+        <div class="option">
+          <label>Charge Line/Dots Color</label>
+          <ha-textfield
+            .value=${this._config.color_charge || ""}
+            .configValue=${"color_charge"}
+            @input=${this._valueChanged}
+            placeholder="#ffd30f"
+          ></ha-textfield>
+        </div>
+
+        <div class="option">
+          <label>Discharge Color</label>
+          <ha-textfield
+            .value=${this._config.color_discharge || ""}
+            .configValue=${"color_discharge"}
+            @input=${this._valueChanged}
+            placeholder="#3090c7"
+          ></ha-textfield>
+          <div class="description">Used for discharge glow + SOC segments</div>
+        </div>
+
+        <div class="option">
+          <label>Balance Charge Color (Cell Charging)</label>
+          <ha-textfield
+            .value=${this._config.color_balance_charge || ""}
+            .configValue=${"color_balance_charge"}
+            @input=${this._valueChanged}
+            placeholder="#ff6b6b"
+          ></ha-textfield>
+        </div>
+
+        <div class="option">
+          <label>Balance Discharge Color (Cell Discharging)</label>
+          <ha-textfield
+            .value=${this._config.color_balance_discharge || ""}
+            .configValue=${"color_balance_discharge"}
+            @input=${this._valueChanged}
+            placeholder="#339af0"
+          ></ha-textfield>
+        </div>
+
+        <div class="option">
+          <label>Min Cell Color</label>
+          <ha-textfield
+            .value=${this._config.color_min_cell || ""}
+            .configValue=${"color_min_cell"}
+            @input=${this._valueChanged}
+            placeholder="#ff6b6b"
+          ></ha-textfield>
+        </div>
+
+        <div class="option">
+          <label>Max Cell Color</label>
+          <ha-textfield
+            .value=${this._config.color_max_cell || ""}
+            .configValue=${"color_max_cell"}
+            @input=${this._valueChanged}
+            placeholder="#51cf66"
+          ></ha-textfield>
+        </div>
       </div>
     `;
+  }
+  _addTempSensor() {
+    const temp_sensors = [...this._config.temp_sensors || []];
+    temp_sensors.push("");
+    this._config = { ...this._config, temp_sensors };
+    this._configChanged();
+  }
+  _removeTempSensor(index) {
+    const temp_sensors = [...this._config.temp_sensors || []];
+    temp_sensors.splice(index, 1);
+    this._config = { ...this._config, temp_sensors };
+    this._configChanged();
+  }
+  _tempSensorChanged(ev) {
+    const target = ev.target;
+    const index = target.index;
+    const value = ev.detail.value;
+    const temp_sensors = [...this._config.temp_sensors || []];
+    temp_sensors[index] = value;
+    this._config = { ...this._config, temp_sensors };
+    this._configChanged();
   }
   _renderCellsPrefix() {
     return b`
