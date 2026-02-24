@@ -114,7 +114,7 @@ export class JkBmsReactorCardEditor extends LitElement {
       discharge_threshold_a: config.discharge_threshold_a ?? 0.5,
       show_overlay: config.show_overlay ?? true,
       show_cell_labels: config.show_cell_labels ?? true,
-      cell_columns: config.cell_columns ?? 4,
+      cell_columns: config.cell_columns ?? 2,
 
       pack_voltage_min: config.pack_voltage_min,
       pack_voltage_max: config.pack_voltage_max,
@@ -459,13 +459,13 @@ export class JkBmsReactorCardEditor extends LitElement {
           <ha-textfield
             type="number"
             min="1"
-            max="8"
+            max="2"
             step="1"
             .value=${this._config.cell_columns ?? 4}
             .configValue=${'cell_columns'}
             @input=${this._valueChanged}
           ></ha-textfield>
-          <div class="description">Number of columns in the cell voltage grid (default: 4)</div>
+          <div class="description">Fixed two-column layout (max: 2)</div>
         </div>
 
         <div class="section-title">Colors (Optional)</div>

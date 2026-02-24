@@ -647,11 +647,11 @@ function getBalancingCells(hass, config, cellVoltages, current, delta, balanceCu
     return out;
   }
   if (balanceCurrent >= 0) {
-    out[max.i] = { isBalancing: true, direction: "discharging" };
-    out[min.i] = { isBalancing: true, direction: "charging" };
-  } else {
     out[max.i] = { isBalancing: true, direction: "charging" };
     out[min.i] = { isBalancing: true, direction: "discharging" };
+  } else {
+    out[max.i] = { isBalancing: true, direction: "discharging" };
+    out[min.i] = { isBalancing: true, direction: "charging" };
   }
   return out;
 }
@@ -1042,6 +1042,10 @@ const styles = i$3`
     stroke: rgba(255, 255, 255, 0.18);
   }
 
+  .stat-sparkline-svg .sparkline.temp {
+    stroke: rgba(255, 211, 15, 0.45);
+  }
+
   .stat-label {
     font-size: 0.85em;
     color: var(--secondary-text-color);
@@ -1212,13 +1216,50 @@ const styles = i$3`
 
   .reactor-grid {
     display: grid;
-    grid-template-columns: repeat(var(--cell-columns, 4), 1fr);
-    gap: 8px;
+    grid-template-columns: 1fr var(--reactor-mid-gap, 28px) 1fr;
+    column-gap: 0;
+    row-gap: 8px;
     position: relative;
   }
 
+  .cell-wrap {
+    display: contents;
+  }
+
+  .cell-flow-column {
+    grid-column: 2;
+    position: relative;
+    pointer-events: none;
+    display: flex;
+    align-items: stretch;
+    justify-content: center;
+  }
+
+  .cell-flow-svg {
+    width: 100%;
+    height: 100%;
+  }
+
+  .cell-flow-path {
+    fill: none;
+    stroke: rgba(255, 255, 255, 0.18);
+    stroke-width: 2;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+  }
+
+  .cell-flow-column.charging .cell-flow-path {
+    stroke: var(--accent-color);
+    filter: drop-shadow(0 0 4px var(--flow-in-glow));
+  }
+
+  .cell-flow-column.discharging .cell-flow-path {
+    stroke: var(--discharge-color);
+    filter: drop-shadow(0 0 4px var(--flow-out-glow));
+  }
+
   .reactor-grid.compact {
-    gap: 4px;
+    row-gap: 4px;
   }
 
   .reactor-grid.compact .cell {
@@ -1534,6 +1575,7 @@ class JkBmsReactorCard extends i {
       power: [],
       delta: []
     };
+    this._historyByEntity = {};
     this._lastSampleTs = 0;
     this._sampleIntervalMs = 2e3;
     this._historyMax = 60;
@@ -1557,7 +1599,7 @@ class JkBmsReactorCard extends i {
       show_overlay: config.show_overlay ?? true,
       show_cell_labels: config.show_cell_labels ?? true,
       compact_cells: config.compact_cells ?? false,
-      cell_columns: config.cell_columns ?? 4,
+      cell_columns: config.cell_columns ?? 2,
       balance_threshold_v: config.balance_threshold_v ?? 0.01,
       charge_threshold_a: config.charge_threshold_a ?? 0.5,
       discharge_threshold_a: config.discharge_threshold_a ?? 0.5,
@@ -1586,7 +1628,7 @@ class JkBmsReactorCard extends i {
   _buildCardStyle() {
     const c2 = this._config;
     const cssVars = {
-      "--cell-columns": c2.cell_columns ? String(Math.max(1, Math.min(8, c2.cell_columns))) : void 0,
+      "--cell-columns": c2.cell_columns ? String(Math.max(1, Math.min(2, c2.cell_columns))) : void 0,
       "--accent-color": c2.color_accent ? this._sanitizeCssToken(c2.color_accent) : void 0,
       "--solar-color": c2.color_charge ? this._sanitizeCssToken(c2.color_charge) : void 0,
       "--discharge-color": c2.color_discharge ? this._sanitizeCssToken(c2.color_discharge) : void 0,
@@ -1624,6 +1666,7 @@ class JkBmsReactorCard extends i {
     };
   }
   updated(changedProperties) {
+    var _a2;
     super.updated(changedProperties);
     if (!changedProperties.has("hass")) return;
     if (!this.hass || !this._config) return;
@@ -1649,6 +1692,20 @@ class JkBmsReactorCard extends i {
     push("current", current);
     push("power", power);
     push("delta", packState.delta);
+    const pushEntity = (entityId, value) => {
+      if (!entityId) return;
+      if (value === null || value === void 0 || Number.isNaN(value)) return;
+      const arr = this._historyByEntity[entityId] = this._historyByEntity[entityId] ?? [];
+      arr.push(value);
+      if (arr.length > this._historyMax) arr.splice(0, arr.length - this._historyMax);
+    };
+    pushEntity(this._config.mos_temp, packState.mosTemp ?? null);
+    for (const entityId of this._config.temp_sensors ?? []) {
+      if (!entityId) continue;
+      const raw = ((_a2 = this.hass.states[entityId]) == null ? void 0 : _a2.state) ?? null;
+      const n3 = raw === null ? NaN : Number(raw);
+      pushEntity(entityId, Number.isFinite(n3) ? n3 : null);
+    }
     this.requestUpdate();
   }
   _downsample(values, max) {
@@ -1665,7 +1722,13 @@ class JkBmsReactorCard extends i {
     if (!((_a2 = this.hass) == null ? void 0 : _a2.callApi)) return;
     if (!((_b = this._config) == null ? void 0 : _b.pack_voltage) || !((_c = this._config) == null ? void 0 : _c.current)) return;
     const start = new Date(Date.now() - 2 * 60 * 60 * 1e3).toISOString();
-    const entityIds = [this._config.pack_voltage, this._config.current, this._config.delta].filter(Boolean).join(",");
+    const entityIds = [
+      this._config.pack_voltage,
+      this._config.current,
+      this._config.delta,
+      this._config.mos_temp,
+      ...this._config.temp_sensors ?? []
+    ].filter(Boolean).join(",");
     const path = `history/period/${start}`;
     const result = await this.hass.callApi("GET", path, {
       filter_entity_id: entityIds,
@@ -1706,6 +1769,13 @@ class JkBmsReactorCard extends i {
       }
       this._history.power = p2;
     }
+    const seedEntity = (entityId) => {
+      if (!entityId) return;
+      const series = this._downsample(perEntity[entityId] ?? [], this._historyMax);
+      if (series.length) this._historyByEntity[entityId] = series;
+    };
+    seedEntity(this._config.mos_temp);
+    for (const t2 of this._config.temp_sensors ?? []) seedEntity(t2);
     this.requestUpdate();
   }
   _sparklinePoints(values, width = 100, height = 30, range) {
@@ -1969,6 +2039,9 @@ class JkBmsReactorCard extends i {
 
         ${this._config.mos_temp ? b`
           <div class="stat-panel">
+            <svg class="stat-sparkline-svg" viewBox="0 0 100 30" preserveAspectRatio="none" aria-hidden="true">
+              <polyline class="sparkline temp" points="${this._sparklinePoints(this._historyByEntity[this._config.mos_temp] ?? [])}"></polyline>
+            </svg>
             <div class="stat-label">MOS Temp</div>
             <div class="stat-value">${formatNumber(packState.mosTemp ?? null, 1)} °C</div>
           </div>
@@ -1979,6 +2052,9 @@ class JkBmsReactorCard extends i {
         <div class="temps-grid">
           ${(packState.temps ?? []).map((t2) => b`
             <div class="stat-panel">
+              <svg class="stat-sparkline-svg" viewBox="0 0 100 30" preserveAspectRatio="none" aria-hidden="true">
+                <polyline class="sparkline temp" points="${this._sparklinePoints(this._historyByEntity[(this._config.temp_sensors ?? [])[t2.index]] ?? [])}"></polyline>
+              </svg>
               <div class="stat-label">Temp ${t2.index + 1}</div>
               <div class="stat-value">${formatNumber(t2.temp ?? null, 1)} °C</div>
             </div>
@@ -1990,31 +2066,60 @@ class JkBmsReactorCard extends i {
   _renderReactor(packState) {
     const showLabels = this._config.show_cell_labels !== false;
     const compact = this._config.compact_cells ?? false;
+    const left = packState.cells.filter((_2, i2) => i2 % 2 === 0);
+    const right = packState.cells.filter((_2, i2) => i2 % 2 === 1);
+    const rows = Math.max(left.length, right.length);
+    const flowClass = packState.isCharging ? "charging" : packState.isDischarging ? "discharging" : "";
+    const cellTemplate = (cell, index) => {
+      const cellClass = this._getCellVoltageClass(cell.voltage, packState.minCell, packState.maxCell);
+      return b`
+        <div class="cell ${cellClass} ${cell.isBalancing ? `balancing${cell.balanceDirection ? ` balancing-${cell.balanceDirection}` : ""}` : ""}">
+          ${compact ? b`
+            <div class="cell-compact-row">
+              <span class="cell-index">${index + 1}:</span>
+              <span class="cell-compact-voltage">${formatNumber(cell.voltage, 3)}V</span>
+            </div>
+          ` : b`
+            ${showLabels ? b`<div class="cell-label">Cell ${index + 1}</div>` : ""}
+            <div class="cell-voltage">
+              ${formatNumber(cell.voltage, 3)}
+              <span class="cell-voltage-unit">V</span>
+            </div>
+          `}
+          ${cell.isBalancing ? b`<div class="balancing-indicator"></div>` : ""}
+        </div>
+      `;
+    };
+    const connectorPath = () => {
+      if (rows <= 0) return "";
+      const step = 10;
+      const y3 = (r2) => r2 * step + step / 2;
+      const xL = 0;
+      const xR = 100;
+      const xM = 50;
+      let d2 = `M ${xL} ${y3(0)} L ${xR} ${y3(0)}`;
+      for (let r2 = 0; r2 < rows - 1; r2++) {
+        d2 += ` L ${xM} ${y3(r2)} L ${xM} ${y3(r2 + 1)} L ${xL} ${y3(r2 + 1)} L ${xR} ${y3(r2 + 1)}`;
+      }
+      return d2;
+    };
     return b`
       <div class="reactor-container">
         <div class="reactor-grid ${compact ? "compact" : ""}">
-          ${packState.cells.map((cell, index) => {
-      const cellClass = this._getCellVoltageClass(
-        cell.voltage,
-        packState.minCell,
-        packState.maxCell
-      );
+          <div class="cell-flow-column ${flowClass}" style="grid-row: 1 / span ${Math.max(1, rows)};">
+            <svg class="cell-flow-svg" viewBox="0 0 100 ${Math.max(1, rows) * 10}" preserveAspectRatio="none" aria-hidden="true">
+              <path class="cell-flow-path" d="${connectorPath()}"></path>
+            </svg>
+          </div>
+
+          ${Array.from({ length: rows }, (_2, r2) => {
+      const l2 = left[r2];
+      const rc = right[r2];
+      const lIndex = r2 * 2;
+      const rIndex = r2 * 2 + 1;
       return b`
-              <div class="cell ${cellClass} ${cell.isBalancing ? `balancing${cell.balanceDirection ? ` balancing-${cell.balanceDirection}` : ""}` : ""}">
-                ${compact ? b`
-                  <div class="cell-compact-row">
-                    <span class="cell-index">${index + 1}:</span>
-                    <span class="cell-compact-voltage">${formatNumber(cell.voltage, 3)}V</span>
-                  </div>
-                ` : b`
-                  ${showLabels ? b`<div class="cell-label">Cell ${index + 1}</div>` : ""}
-                  <div class="cell-voltage">
-                    ${formatNumber(cell.voltage, 3)}
-                    <span class="cell-voltage-unit">V</span>
-                  </div>
-                `}
-                ${cell.isBalancing ? b`<div class="balancing-indicator"></div>` : ""}
-              </div>
+              ${l2 ? b`<div class="cell-wrap" style="grid-column: 1; grid-row: ${r2 + 1};">${cellTemplate(l2, lIndex)}</div>` : ""}
+              ${rc ? b`<div class="cell-wrap" style="grid-column: 3; grid-row: ${r2 + 1};">${cellTemplate(rc, rIndex)}</div>` : ""}
             `;
     })}
         </div>
@@ -2200,7 +2305,7 @@ class JkBmsReactorCardEditor extends i {
       discharge_threshold_a: config.discharge_threshold_a ?? 0.5,
       show_overlay: config.show_overlay ?? true,
       show_cell_labels: config.show_cell_labels ?? true,
-      cell_columns: config.cell_columns ?? 4,
+      cell_columns: config.cell_columns ?? 2,
       pack_voltage_min: config.pack_voltage_min,
       pack_voltage_max: config.pack_voltage_max,
       capacity_remaining: config.capacity_remaining ?? "",
@@ -2530,13 +2635,13 @@ class JkBmsReactorCardEditor extends i {
           <ha-textfield
             type="number"
             min="1"
-            max="8"
+            max="2"
             step="1"
             .value=${this._config.cell_columns ?? 4}
             .configValue=${"cell_columns"}
             @input=${this._valueChanged}
           ></ha-textfield>
-          <div class="description">Number of columns in the cell voltage grid (default: 4)</div>
+          <div class="description">Fixed two-column layout (max: 2)</div>
         </div>
 
         <div class="section-title">Colors (Optional)</div>

@@ -15,6 +15,8 @@ export class JkBmsReactorCard extends LitElement {
     delta: [] as number[],
   };
 
+  private _historyByEntity: Record<string, number[]> = {};
+
   private _lastSampleTs = 0;
   private _sampleIntervalMs = 2000;
   private _historyMax = 60;
@@ -42,7 +44,7 @@ export class JkBmsReactorCard extends LitElement {
       show_overlay: config.show_overlay ?? true,
       show_cell_labels: config.show_cell_labels ?? true,
       compact_cells: config.compact_cells ?? false,
-      cell_columns: config.cell_columns ?? 4,
+      cell_columns: config.cell_columns ?? 2,
       balance_threshold_v: config.balance_threshold_v ?? 0.01,
       charge_threshold_a: config.charge_threshold_a ?? 0.5,
       discharge_threshold_a: config.discharge_threshold_a ?? 0.5,
@@ -76,7 +78,7 @@ export class JkBmsReactorCard extends LitElement {
   private _buildCardStyle(): string {
     const c = this._config;
     const cssVars: Record<string, string | undefined> = {
-      '--cell-columns': c.cell_columns ? String(Math.max(1, Math.min(8, c.cell_columns))) : undefined,
+      '--cell-columns': c.cell_columns ? String(Math.max(1, Math.min(2, c.cell_columns))) : undefined,
       '--accent-color': c.color_accent ? this._sanitizeCssToken(c.color_accent) : undefined,
       '--solar-color': c.color_charge ? this._sanitizeCssToken(c.color_charge) : undefined,
       '--discharge-color': c.color_discharge ? this._sanitizeCssToken(c.color_discharge) : undefined,
@@ -158,6 +160,22 @@ export class JkBmsReactorCard extends LitElement {
     push('power', power);
     push('delta', packState.delta);
 
+    const pushEntity = (entityId: string | undefined, value: number | null) => {
+      if (!entityId) return;
+      if (value === null || value === undefined || Number.isNaN(value)) return;
+      const arr = (this._historyByEntity[entityId] = this._historyByEntity[entityId] ?? []);
+      arr.push(value);
+      if (arr.length > this._historyMax) arr.splice(0, arr.length - this._historyMax);
+    };
+
+    pushEntity(this._config.mos_temp, packState.mosTemp ?? null);
+    for (const entityId of this._config.temp_sensors ?? []) {
+      if (!entityId) continue;
+      const raw = this.hass.states[entityId]?.state ?? null;
+      const n = raw === null ? NaN : Number(raw);
+      pushEntity(entityId, Number.isFinite(n) ? n : null);
+    }
+
     // Ensure sparklines repaint even if no other state changed
     this.requestUpdate();
   }
@@ -177,7 +195,13 @@ export class JkBmsReactorCard extends LitElement {
     if (!this._config?.pack_voltage || !this._config?.current) return;
 
     const start = new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString();
-    const entityIds = [this._config.pack_voltage, this._config.current, this._config.delta]
+    const entityIds = [
+      this._config.pack_voltage,
+      this._config.current,
+      this._config.delta,
+      this._config.mos_temp,
+      ...(this._config.temp_sensors ?? []),
+    ]
       .filter(Boolean)
       .join(',');
 
@@ -230,6 +254,15 @@ export class JkBmsReactorCard extends LitElement {
       }
       this._history.power = p;
     }
+
+    const seedEntity = (entityId?: string) => {
+      if (!entityId) return;
+      const series = this._downsample(perEntity[entityId] ?? [], this._historyMax);
+      if (series.length) this._historyByEntity[entityId] = series;
+    };
+
+    seedEntity(this._config.mos_temp);
+    for (const t of this._config.temp_sensors ?? []) seedEntity(t);
 
     this.requestUpdate();
   }
@@ -540,6 +573,9 @@ export class JkBmsReactorCard extends LitElement {
 
         ${this._config.mos_temp ? html`
           <div class="stat-panel">
+            <svg class="stat-sparkline-svg" viewBox="0 0 100 30" preserveAspectRatio="none" aria-hidden="true">
+              <polyline class="sparkline temp" points="${this._sparklinePoints(this._historyByEntity[this._config.mos_temp] ?? [])}"></polyline>
+            </svg>
             <div class="stat-label">MOS Temp</div>
             <div class="stat-value">${formatNumber(packState.mosTemp ?? null, 1)} °C</div>
           </div>
@@ -550,6 +586,9 @@ export class JkBmsReactorCard extends LitElement {
         <div class="temps-grid">
           ${(packState.temps ?? []).map(t => html`
             <div class="stat-panel">
+              <svg class="stat-sparkline-svg" viewBox="0 0 100 30" preserveAspectRatio="none" aria-hidden="true">
+                <polyline class="sparkline temp" points="${this._sparklinePoints(this._historyByEntity[(this._config.temp_sensors ?? [])[t.index]] ?? [])}"></polyline>
+              </svg>
               <div class="stat-label">Temp ${t.index + 1}</div>
               <div class="stat-value">${formatNumber(t.temp ?? null, 1)} °C</div>
             </div>
@@ -563,32 +602,65 @@ export class JkBmsReactorCard extends LitElement {
     const showLabels = this._config.show_cell_labels !== false;
     const compact = this._config.compact_cells ?? false;
 
+    const left = packState.cells.filter((_, i) => i % 2 === 0);
+    const right = packState.cells.filter((_, i) => i % 2 === 1);
+    const rows = Math.max(left.length, right.length);
+
+    const flowClass = packState.isCharging ? 'charging' : packState.isDischarging ? 'discharging' : '';
+
+    const cellTemplate = (cell: any, index: number) => {
+      const cellClass = this._getCellVoltageClass(cell.voltage, packState.minCell, packState.maxCell);
+      return html`
+        <div class="cell ${cellClass} ${cell.isBalancing ? `balancing${cell.balanceDirection ? ` balancing-${cell.balanceDirection}` : ''}` : ''}">
+          ${compact ? html`
+            <div class="cell-compact-row">
+              <span class="cell-index">${index + 1}:</span>
+              <span class="cell-compact-voltage">${formatNumber(cell.voltage, 3)}V</span>
+            </div>
+          ` : html`
+            ${showLabels ? html`<div class="cell-label">Cell ${index + 1}</div>` : ''}
+            <div class="cell-voltage">
+              ${formatNumber(cell.voltage, 3)}
+              <span class="cell-voltage-unit">V</span>
+            </div>
+          `}
+          ${cell.isBalancing ? html`<div class="balancing-indicator"></div>` : ''}
+        </div>
+      `;
+    };
+
+    const connectorPath = () => {
+      if (rows <= 0) return '';
+      const step = 10;
+      const y = (r: number) => r * step + step / 2;
+      const xL = 0;
+      const xR = 100;
+      const xM = 50;
+
+      let d = `M ${xL} ${y(0)} L ${xR} ${y(0)}`;
+      for (let r = 0; r < rows - 1; r++) {
+        d += ` L ${xM} ${y(r)} L ${xM} ${y(r + 1)} L ${xL} ${y(r + 1)} L ${xR} ${y(r + 1)}`;
+      }
+      return d;
+    };
+
     return html`
       <div class="reactor-container">
         <div class="reactor-grid ${compact ? 'compact' : ''}">
-          ${packState.cells.map((cell, index) => {
-      const cellClass = this._getCellVoltageClass(
-        cell.voltage,
-        packState.minCell,
-        packState.maxCell
-      );
+          <div class="cell-flow-column ${flowClass}" style="grid-row: 1 / span ${Math.max(1, rows)};">
+            <svg class="cell-flow-svg" viewBox="0 0 100 ${Math.max(1, rows) * 10}" preserveAspectRatio="none" aria-hidden="true">
+              <path class="cell-flow-path" d="${connectorPath()}"></path>
+            </svg>
+          </div>
 
+          ${Array.from({ length: rows }, (_, r) => {
+      const l = left[r];
+      const rc = right[r];
+      const lIndex = r * 2;
+      const rIndex = r * 2 + 1;
       return html`
-              <div class="cell ${cellClass} ${cell.isBalancing ? `balancing${cell.balanceDirection ? ` balancing-${cell.balanceDirection}` : ''}` : ''}">
-                ${compact ? html`
-                  <div class="cell-compact-row">
-                    <span class="cell-index">${index + 1}:</span>
-                    <span class="cell-compact-voltage">${formatNumber(cell.voltage, 3)}V</span>
-                  </div>
-                ` : html`
-                  ${showLabels ? html`<div class="cell-label">Cell ${index + 1}</div>` : ''}
-                  <div class="cell-voltage">
-                    ${formatNumber(cell.voltage, 3)}
-                    <span class="cell-voltage-unit">V</span>
-                  </div>
-                `}
-                ${cell.isBalancing ? html`<div class="balancing-indicator"></div>` : ''}
-              </div>
+              ${l ? html`<div class="cell-wrap" style="grid-column: 1; grid-row: ${r + 1};">${cellTemplate(l, lIndex)}</div>` : ''}
+              ${rc ? html`<div class="cell-wrap" style="grid-column: 3; grid-row: ${r + 1};">${cellTemplate(rc, rIndex)}</div>` : ''}
             `;
     })}
         </div>

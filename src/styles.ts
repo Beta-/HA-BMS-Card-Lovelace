@@ -329,6 +329,10 @@ export const styles = css`
     stroke: rgba(255, 255, 255, 0.18);
   }
 
+  .stat-sparkline-svg .sparkline.temp {
+    stroke: rgba(255, 211, 15, 0.45);
+  }
+
   .stat-label {
     font-size: 0.85em;
     color: var(--secondary-text-color);
@@ -499,13 +503,50 @@ export const styles = css`
 
   .reactor-grid {
     display: grid;
-    grid-template-columns: repeat(var(--cell-columns, 4), 1fr);
-    gap: 8px;
+    grid-template-columns: 1fr var(--reactor-mid-gap, 28px) 1fr;
+    column-gap: 0;
+    row-gap: 8px;
     position: relative;
   }
 
+  .cell-wrap {
+    display: contents;
+  }
+
+  .cell-flow-column {
+    grid-column: 2;
+    position: relative;
+    pointer-events: none;
+    display: flex;
+    align-items: stretch;
+    justify-content: center;
+  }
+
+  .cell-flow-svg {
+    width: 100%;
+    height: 100%;
+  }
+
+  .cell-flow-path {
+    fill: none;
+    stroke: rgba(255, 255, 255, 0.18);
+    stroke-width: 2;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+  }
+
+  .cell-flow-column.charging .cell-flow-path {
+    stroke: var(--accent-color);
+    filter: drop-shadow(0 0 4px var(--flow-in-glow));
+  }
+
+  .cell-flow-column.discharging .cell-flow-path {
+    stroke: var(--discharge-color);
+    filter: drop-shadow(0 0 4px var(--flow-out-glow));
+  }
+
   .reactor-grid.compact {
-    gap: 4px;
+    row-gap: 4px;
   }
 
   .reactor-grid.compact .cell {

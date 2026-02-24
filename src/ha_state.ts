@@ -63,8 +63,7 @@ export function getCellVoltages(hass: HomeAssistant, config: JkBmsReactorCardCon
 
 /**
  * Determine which cells are balancing and in which direction
- * Positive balance current = high cells discharging
- * Negative balance current = low cells charging  
+ * Direction mapping (as rendered) is based on balance current sign.
  */
 export function getBalancingCells(
     hass: HomeAssistant,
@@ -111,13 +110,14 @@ export function getBalancingCells(
     }
 
     // Always show one cell discharging and one charging.
-    // Positive current => energy flows max -> min; negative => min -> max.
+    // NOTE: This mapping is intentionally inverted compared to the previous implementation
+    // because the UI direction colors were observed to be swapped.
     if ((balanceCurrent as number) >= 0) {
-        out[max.i] = { isBalancing: true, direction: 'discharging' };
-        out[min.i] = { isBalancing: true, direction: 'charging' };
-    } else {
         out[max.i] = { isBalancing: true, direction: 'charging' };
         out[min.i] = { isBalancing: true, direction: 'discharging' };
+    } else {
+        out[max.i] = { isBalancing: true, direction: 'discharging' };
+        out[min.i] = { isBalancing: true, direction: 'charging' };
     }
 
     return out;
