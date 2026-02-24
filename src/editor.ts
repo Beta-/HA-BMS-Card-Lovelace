@@ -55,6 +55,11 @@ export class JkBmsReactorCardEditor extends LitElement {
         flex: 1;
       }
 
+      .cells-mode ha-button.active {
+        background: var(--primary-color);
+        color: var(--text-primary-color, white);
+      }
+
       .cells-list {
         display: flex;
         flex-direction: column;
@@ -74,6 +79,22 @@ export class JkBmsReactorCardEditor extends LitElement {
 
       .add-cell-btn {
         margin-top: 8px;
+      }
+
+      .icon-btn {
+        width: 36px;
+        height: 36px;
+        border-radius: 18px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+        color: var(--secondary-text-color);
+      }
+
+      .icon-btn:hover {
+        background: rgba(255, 255, 255, 0.06);
+        color: var(--primary-text-color);
       }
     `;
   }
@@ -159,18 +180,18 @@ export class JkBmsReactorCardEditor extends LitElement {
         <div class="section-title">Cell Configuration</div>
         
         <div class="cells-mode">
-          <mwc-button
-            ?raised=${useCellsArray}
+          <ha-button
+            class=${useCellsArray ? 'active' : ''}
             @click=${() => this._setCellsMode('array')}
           >
             Individual Cells
-          </mwc-button>
-          <mwc-button
-            ?raised=${!useCellsArray}
+          </ha-button>
+          <ha-button
+            class=${!useCellsArray ? 'active' : ''}
             @click=${() => this._setCellsMode('prefix')}
           >
             Prefix + Count
-          </mwc-button>
+          </ha-button>
         </div>
 
         ${useCellsArray ? this._renderCellsArray() : this._renderCellsPrefix()}
@@ -364,21 +385,19 @@ export class JkBmsReactorCardEditor extends LitElement {
                 .includeDomains=${['sensor', 'input_number', 'number']}
                 allow-custom-entity
               ></ha-entity-picker>
-              <mwc-icon-button
-                @click=${() => this._removeCell(index)}
-              >
+              <div class="icon-btn" @click=${() => this._removeCell(index)}>
                 <ha-icon icon="mdi:delete"></ha-icon>
-              </mwc-icon-button>
+              </div>
             </div>
           `)}
         </div>
-        <mwc-button
+        <ha-button
           class="add-cell-btn"
           @click=${this._addCell}
         >
           <ha-icon icon="mdi:plus"></ha-icon>
           Add Cell
-        </mwc-button>
+        </ha-button>
       </div>
     `;
   }

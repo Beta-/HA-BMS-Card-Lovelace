@@ -15,7 +15,7 @@ console.info(
 // Add to window for card picker
 (window as any).customCards = (window as any).customCards || [];
 (window as any).customCards.push({
-    type: 'jk-bms-reactor-card',
+    type: 'custom:jk-bms-reactor-card',
     name: 'JK BMS Reactor Card',
     description: 'A reactor-style visualization card for JK BMS battery packs',
     preview: false,

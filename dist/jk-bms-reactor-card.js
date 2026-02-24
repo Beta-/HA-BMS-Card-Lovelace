@@ -822,6 +822,36 @@ const styles = i$3`
     transform: rotate(-90deg);
   }
 
+  .soc-segmented {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+  }
+
+  .soc-seg {
+    stroke-width: 2.2;
+    stroke-linecap: butt;
+  }
+
+  .soc-seg.inactive {
+    stroke: rgba(255, 255, 255, 0.12);
+  }
+
+  .soc-seg.active {
+    stroke: rgba(255, 255, 255, 0.85);
+  }
+
+  .soc-segmented.charging .soc-seg.active {
+    stroke: rgba(81, 207, 102, 0.95);
+    filter: drop-shadow(0 0 3px rgba(81, 207, 102, 0.45));
+  }
+
+  .soc-segmented.discharging .soc-seg.active {
+    stroke: rgba(51, 154, 240, 0.95);
+    filter: drop-shadow(0 0 3px rgba(51, 154, 240, 0.45));
+  }
+
   .soc-bg {
     fill: none;
     stroke: var(--panel-bg);
@@ -932,6 +962,16 @@ const styles = i$3`
     overflow: hidden;
   }
 
+  .stat-panel.flow-in {
+    box-shadow: 0 0 18px rgba(81, 207, 102, 0.22);
+    border-color: rgba(81, 207, 102, 0.35);
+  }
+
+  .stat-panel.flow-out {
+    box-shadow: 0 0 18px rgba(51, 154, 240, 0.22);
+    border-color: rgba(51, 154, 240, 0.35);
+  }
+
   .stat-sparkline {
     position: absolute;
     top: 0;
@@ -944,6 +984,41 @@ const styles = i$3`
       rgba(65, 205, 82, 0.05) 100%);
     opacity: 0.5;
     z-index: 0;
+  }
+
+  .stat-sparkline-svg {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    opacity: 0.55;
+    z-index: 0;
+  }
+
+  .stat-sparkline-svg .sparkline {
+    fill: none;
+    stroke-width: 2;
+    stroke-linejoin: round;
+    stroke-linecap: round;
+  }
+
+  .stat-sparkline-svg .sparkline.voltage {
+    stroke: rgba(255, 255, 255, 0.22);
+  }
+
+  .stat-panel.flow-in .stat-sparkline-svg .sparkline.current,
+  .stat-panel.flow-in .stat-sparkline-svg .sparkline.power {
+    stroke: rgba(81, 207, 102, 0.5);
+  }
+
+  .stat-panel.flow-out .stat-sparkline-svg .sparkline.current,
+  .stat-panel.flow-out .stat-sparkline-svg .sparkline.power {
+    stroke: rgba(51, 154, 240, 0.5);
+  }
+
+  .stat-panel:not(.flow-in):not(.flow-out) .stat-sparkline-svg .sparkline.current,
+  .stat-panel:not(.flow-in):not(.flow-out) .stat-sparkline-svg .sparkline.power {
+    stroke: rgba(255, 255, 255, 0.18);
   }
 
   .stat-label {
@@ -964,6 +1039,7 @@ const styles = i$3`
 
   .delta-minmax-panel {
     padding: 10px 8px;
+    grid-column: 2 / span 2;
   }
 
   .delta-minmax-container {
@@ -1014,6 +1090,19 @@ const styles = i$3`
     gap: 2px;
     width: 80px;
     flex: 0 0 auto;
+  }
+
+  .minmax-row {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    line-height: 1;
+  }
+
+  .minmax-icon {
+    --mdc-icon-size: 14px;
+    opacity: 0.85;
   }
 
   .max-value {
@@ -1103,9 +1192,9 @@ const styles = i$3`
   }
 
   .cell.balancing-discharging {
-    border-color: #ff6b6b;
+    border-color: #339af0;
     animation: cell-balance-pulse 2s ease-in-out infinite;
-    box-shadow: 0 0 15px #ff6b6b;
+    box-shadow: 0 0 15px #339af0;
     position: relative;
   }
 
@@ -1114,7 +1203,7 @@ const styles = i$3`
     position: absolute;
     inset: -4px;
     border-radius: 14px;
-    border: 2px solid #ff6b6b;
+    border: 2px solid #339af0;
     opacity: 0.5;
     animation: balance-ring-pulse 2s ease-in-out infinite;
   }
@@ -1124,15 +1213,15 @@ const styles = i$3`
     position: absolute;
     inset: -8px;
     border-radius: 16px;
-    border: 1px solid #ff6b6b;
+    border: 1px solid #339af0;
     opacity: 0.3;
     animation: balance-ring-pulse 2s ease-in-out infinite 0.5s;
   }
 
   .cell.balancing-charging {
-    border-color: #51cf66;
+    border-color: #ff6b6b;
     animation: cell-balance-pulse 2s ease-in-out infinite;
-    box-shadow: 0 0 15px #51cf66;
+    box-shadow: 0 0 15px #ff6b6b;
     position: relative;
   }
 
@@ -1141,7 +1230,7 @@ const styles = i$3`
     position: absolute;
     inset: -4px;
     border-radius: 14px;
-    border: 2px solid #51cf66;
+    border: 2px solid #ff6b6b;
     opacity: 0.5;
     animation: balance-ring-pulse 2s ease-in-out infinite;
   }
@@ -1151,7 +1240,7 @@ const styles = i$3`
     position: absolute;
     inset: -8px;
     border-radius: 16px;
-    border: 1px solid #51cf66;
+    border: 1px solid #ff6b6b;
     opacity: 0.3;
     animation: balance-ring-pulse 2s ease-in-out infinite 0.5s;
   }
@@ -1180,13 +1269,13 @@ const styles = i$3`
   }
 
   .balancing-discharging .balancing-indicator {
-    background: #ff6b6b;
-    box-shadow: 0 0 8px #ff6b6b;
+    background: #339af0;
+    box-shadow: 0 0 8px #339af0;
   }
 
   .balancing-charging .balancing-indicator {
-    background: #51cf66;
-    box-shadow: 0 0 8px #51cf66;
+    background: #ff6b6b;
+    box-shadow: 0 0 8px #ff6b6b;
   }
 
   @keyframes balancing-blink {
@@ -1307,6 +1396,10 @@ const styles = i$3`
       grid-template-columns: repeat(2, 1fr);
     }
 
+    .delta-minmax-panel {
+      grid-column: 1 / -1;
+    }
+
     .flow-section {
       grid-template-columns: 0.8fr 1.2fr 0.8fr;
       min-height: 150px;
@@ -1354,6 +1447,18 @@ var __decorateClass$1 = (decorators, target, key, kind) => {
   return result;
 };
 class JkBmsReactorCard extends i {
+  constructor() {
+    super(...arguments);
+    this._history = {
+      voltage: [],
+      current: [],
+      power: []
+    };
+    this._lastSampleTs = 0;
+    this._sampleIntervalMs = 2e3;
+    this._historyMax = 60;
+    this._historySeeded = false;
+  }
   static get styles() {
     return styles;
   }
@@ -1392,6 +1497,101 @@ class JkBmsReactorCard extends i {
       cells_prefix: "sensor.jk_bms_cell_",
       cells_count: 16
     };
+  }
+  updated(changedProperties) {
+    super.updated(changedProperties);
+    if (!changedProperties.has("hass")) return;
+    if (!this.hass || !this._config) return;
+    if (!this._historySeeded) {
+      this._historySeeded = true;
+      this._seedHistoryFromHa().catch(() => {
+      });
+    }
+    const now = Date.now();
+    if (now - this._lastSampleTs < this._sampleIntervalMs) return;
+    this._lastSampleTs = now;
+    const packState = computePackState(this.hass, this._config);
+    const voltage = packState.voltage;
+    const current = packState.current;
+    const power = (voltage ?? 0) * (current ?? 0);
+    const push = (key, value) => {
+      if (value === null || value === void 0 || Number.isNaN(value)) return;
+      const arr = this._history[key];
+      arr.push(value);
+      if (arr.length > this._historyMax) arr.splice(0, arr.length - this._historyMax);
+    };
+    push("voltage", voltage);
+    push("current", current);
+    push("power", power);
+    this.requestUpdate();
+  }
+  _downsample(values, max) {
+    if (values.length <= max) return values;
+    const step = values.length / max;
+    const out = [];
+    for (let i2 = 0; i2 < max; i2++) {
+      out.push(values[Math.floor(i2 * step)]);
+    }
+    return out;
+  }
+  async _seedHistoryFromHa() {
+    var _a2, _b, _c;
+    if (!((_a2 = this.hass) == null ? void 0 : _a2.callApi)) return;
+    if (!((_b = this._config) == null ? void 0 : _b.pack_voltage) || !((_c = this._config) == null ? void 0 : _c.current)) return;
+    const start = new Date(Date.now() - 2 * 60 * 60 * 1e3).toISOString();
+    const entityIds = `${this._config.pack_voltage},${this._config.current}`;
+    const path = `history/period/${start}`;
+    const result = await this.hass.callApi("GET", path, {
+      filter_entity_id: entityIds,
+      minimal_response: true,
+      no_attributes: true,
+      significant_changes_only: true
+    });
+    if (!Array.isArray(result)) return;
+    const extract = (s2) => {
+      const raw = (s2 == null ? void 0 : s2.s) ?? (s2 == null ? void 0 : s2.state);
+      const n22 = raw === void 0 || raw === null ? NaN : Number(raw);
+      return Number.isFinite(n22) ? n22 : null;
+    };
+    const perEntity = {};
+    for (const entityHistory of result) {
+      if (!Array.isArray(entityHistory) || entityHistory.length === 0) continue;
+      const first = entityHistory[0];
+      const entityId = (first == null ? void 0 : first.entity_id) ?? (first == null ? void 0 : first.e);
+      if (!entityId) continue;
+      const vals = [];
+      for (const st of entityHistory) {
+        const v2 = extract(st);
+        if (v2 !== null) vals.push(v2);
+      }
+      perEntity[entityId] = vals;
+    }
+    const vSeries = this._downsample(perEntity[this._config.pack_voltage] ?? [], this._historyMax);
+    const cSeries = this._downsample(perEntity[this._config.current] ?? [], this._historyMax);
+    if (vSeries.length) this._history.voltage = vSeries;
+    if (cSeries.length) this._history.current = cSeries;
+    const n3 = Math.min(this._history.voltage.length, this._history.current.length);
+    if (n3 > 0) {
+      const p2 = [];
+      for (let i2 = 0; i2 < n3; i2++) {
+        p2.push(this._history.voltage[i2] * this._history.current[i2]);
+      }
+      this._history.power = p2;
+    }
+    this.requestUpdate();
+  }
+  _sparklinePoints(values, width = 100, height = 30) {
+    if (!values.length) return "";
+    const min = Math.min(...values);
+    const max = Math.max(...values);
+    const span = max - min;
+    const stepX = values.length > 1 ? width / (values.length - 1) : 0;
+    return values.map((v2, i2) => {
+      const x2 = i2 * stepX;
+      const t2 = span === 0 ? 0.5 : (v2 - min) / span;
+      const y3 = height - t2 * height;
+      return `${x2.toFixed(2)},${y3.toFixed(2)}`;
+    }).join(" ");
   }
   _getCellVoltageClass(voltage, minCell, maxCell) {
     if (voltage < 3) return "low-voltage";
@@ -1463,8 +1663,9 @@ class JkBmsReactorCard extends i {
     };
     const chargeDotSize = isChargingFlow ? dotRadiusForPower(power) : 3;
     const dischargeDotSize = isDischargingFlow ? dotRadiusForPower(power) : 3;
-    const circumference = 283;
-    const progress = circumference - soc / 100 * circumference;
+    const segCount = 360;
+    const activeSegs = Math.max(0, Math.min(segCount, Math.round(soc / 100 * segCount)));
+    const socGlowClass = isChargingFlow ? "charging" : isDischargingFlow ? "discharging" : "";
     return b`
       <div class="flow-section">
         <!-- Charger Node -->
@@ -1486,11 +1687,19 @@ class JkBmsReactorCard extends i {
 
         <!-- Reactor Ring (SOC Progress) -->
         <div class="reactor-ring-container">
-          <svg class="soc-progress" viewBox="0 0 100 100">
-            <circle class="soc-bg" cx="50" cy="50" r="45"></circle>
-            <circle class="soc-fill ${packState.isBalancing ? "balancing-active" : ""}" 
-                    cx="50" cy="50" r="45"
-                    style="stroke-dasharray: ${circumference}; stroke-dashoffset: ${progress};"></circle>
+          <svg class="soc-segmented ${socGlowClass}" viewBox="0 0 120 120" aria-hidden="true">
+            <g transform="translate(60 60)">
+              ${Array.from({ length: segCount }, (_2, i2) => {
+      const isActive = i2 < activeSegs;
+      return w`
+                  <line
+                    class="soc-seg ${isActive ? "active" : "inactive"}"
+                    x1="0" y1="-52" x2="0" y2="-58"
+                    transform="rotate(${i2})"
+                  ></line>
+                `;
+    })}
+            </g>
           </svg>
           <div class="reactor-ring ${packState.isBalancing ? "balancing-active" : ""}">
             <div class="soc-label">SoC</div>
@@ -1555,19 +1764,25 @@ class JkBmsReactorCard extends i {
       <!-- Stats Panels with sparklines -->
       <div class="stats-grid">
         <div class="stat-panel">
-          <div class="stat-sparkline"></div>
+          <svg class="stat-sparkline-svg" viewBox="0 0 100 30" preserveAspectRatio="none" aria-hidden="true">
+            <polyline class="sparkline voltage" points="${this._sparklinePoints(this._history.voltage)}"></polyline>
+          </svg>
           <div class="stat-label">Voltage</div>
           <div class="stat-value">${formatNumber(packState.voltage, 2)} V</div>
         </div>
-        <div class="stat-panel">
-          <div class="stat-sparkline"></div>
+        <div class="stat-panel ${current > 0.5 ? "flow-in" : current < -0.5 ? "flow-out" : ""}">
+          <svg class="stat-sparkline-svg" viewBox="0 0 100 30" preserveAspectRatio="none" aria-hidden="true">
+            <polyline class="sparkline current" points="${this._sparklinePoints(this._history.current)}"></polyline>
+          </svg>
           <div class="stat-label">Current</div>
           <div class="stat-value">${formatNumber(packState.current, 2)} A</div>
         </div>
-        <div class="stat-panel">
-          <div class="stat-sparkline"></div>
+        <div class="stat-panel ${current > 0.5 ? "flow-in" : current < -0.5 ? "flow-out" : ""}">
+          <svg class="stat-sparkline-svg" viewBox="0 0 100 30" preserveAspectRatio="none" aria-hidden="true">
+            <polyline class="sparkline power" points="${this._sparklinePoints(this._history.power)}"></polyline>
+          </svg>
           <div class="stat-label">Power</div>
-          <div class="stat-value">${formatNumber(power, 1)} W</div>
+          <div class="stat-value">${formatNumber(Math.abs((packState.voltage ?? 0) * (packState.current ?? 0)), 1)} W</div>
         </div>
         <div class="stat-panel delta-minmax-panel">
           <div class="stat-sparkline"></div>
@@ -1578,9 +1793,15 @@ class JkBmsReactorCard extends i {
             </div>
             <div class="delta-divider">|</div>
             <div class="delta-right">
-              <div class="max-value">${formatNumber(packState.maxCell, 3)}V</div>
+              <div class="minmax-row max">
+                <ha-icon class="minmax-icon" icon="mdi:arrow-up-bold"></ha-icon>
+                <span class="max-value">${formatNumber(packState.maxCell, 3)}V</span>
+              </div>
               <div class="minmax-divider"></div>
-              <div class="min-value">${formatNumber(packState.minCell, 3)}V</div>
+              <div class="minmax-row min">
+                <ha-icon class="minmax-icon" icon="mdi:arrow-down-bold"></ha-icon>
+                <span class="min-value">${formatNumber(packState.minCell, 3)}V</span>
+              </div>
             </div>
           </div>
         </div>
@@ -1715,6 +1936,11 @@ class JkBmsReactorCardEditor extends i {
         flex: 1;
       }
 
+      .cells-mode ha-button.active {
+        background: var(--primary-color);
+        color: var(--text-primary-color, white);
+      }
+
       .cells-list {
         display: flex;
         flex-direction: column;
@@ -1734,6 +1960,22 @@ class JkBmsReactorCardEditor extends i {
 
       .add-cell-btn {
         margin-top: 8px;
+      }
+
+      .icon-btn {
+        width: 36px;
+        height: 36px;
+        border-radius: 18px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+        color: var(--secondary-text-color);
+      }
+
+      .icon-btn:hover {
+        background: rgba(255, 255, 255, 0.06);
+        color: var(--primary-text-color);
       }
     `;
   }
@@ -1812,18 +2054,18 @@ class JkBmsReactorCardEditor extends i {
         <div class="section-title">Cell Configuration</div>
         
         <div class="cells-mode">
-          <mwc-button
-            ?raised=${useCellsArray}
+          <ha-button
+            class=${useCellsArray ? "active" : ""}
             @click=${() => this._setCellsMode("array")}
           >
             Individual Cells
-          </mwc-button>
-          <mwc-button
-            ?raised=${!useCellsArray}
+          </ha-button>
+          <ha-button
+            class=${!useCellsArray ? "active" : ""}
             @click=${() => this._setCellsMode("prefix")}
           >
             Prefix + Count
-          </mwc-button>
+          </ha-button>
         </div>
 
         ${useCellsArray ? this._renderCellsArray() : this._renderCellsPrefix()}
@@ -2014,21 +2256,19 @@ class JkBmsReactorCardEditor extends i {
                 .includeDomains=${["sensor", "input_number", "number"]}
                 allow-custom-entity
               ></ha-entity-picker>
-              <mwc-icon-button
-                @click=${() => this._removeCell(index)}
-              >
+              <div class="icon-btn" @click=${() => this._removeCell(index)}>
                 <ha-icon icon="mdi:delete"></ha-icon>
-              </mwc-icon-button>
+              </div>
             </div>
           `)}
         </div>
-        <mwc-button
+        <ha-button
           class="add-cell-btn"
           @click=${this._addCell}
         >
           <ha-icon icon="mdi:plus"></ha-icon>
           Add Cell
-        </mwc-button>
+        </ha-button>
       </div>
     `;
   }
@@ -2122,7 +2362,7 @@ console.info(
 );
 window.customCards = window.customCards || [];
 window.customCards.push({
-  type: "jk-bms-reactor-card",
+  type: "custom:jk-bms-reactor-card",
   name: "JK BMS Reactor Card",
   description: "A reactor-style visualization card for JK BMS battery packs",
   preview: false

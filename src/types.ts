@@ -7,6 +7,7 @@ export interface HomeAssistant {
         [entity_id: string]: HassEntity | undefined;
     };
     callService: (domain: string, service: string, serviceData?: any) => Promise<void>;
+    callApi?: <T = any>(method: string, path: string, parameters?: any) => Promise<T>;
     // Add other HA properties as needed
 }
 

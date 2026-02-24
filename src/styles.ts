@@ -122,6 +122,36 @@ export const styles = css`
     transform: rotate(-90deg);
   }
 
+  .soc-segmented {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+  }
+
+  .soc-seg {
+    stroke-width: 2.2;
+    stroke-linecap: butt;
+  }
+
+  .soc-seg.inactive {
+    stroke: rgba(255, 255, 255, 0.12);
+  }
+
+  .soc-seg.active {
+    stroke: rgba(255, 255, 255, 0.85);
+  }
+
+  .soc-segmented.charging .soc-seg.active {
+    stroke: rgba(81, 207, 102, 0.95);
+    filter: drop-shadow(0 0 3px rgba(81, 207, 102, 0.45));
+  }
+
+  .soc-segmented.discharging .soc-seg.active {
+    stroke: rgba(51, 154, 240, 0.95);
+    filter: drop-shadow(0 0 3px rgba(51, 154, 240, 0.45));
+  }
+
   .soc-bg {
     fill: none;
     stroke: var(--panel-bg);
@@ -232,6 +262,16 @@ export const styles = css`
     overflow: hidden;
   }
 
+  .stat-panel.flow-in {
+    box-shadow: 0 0 18px rgba(81, 207, 102, 0.22);
+    border-color: rgba(81, 207, 102, 0.35);
+  }
+
+  .stat-panel.flow-out {
+    box-shadow: 0 0 18px rgba(51, 154, 240, 0.22);
+    border-color: rgba(51, 154, 240, 0.35);
+  }
+
   .stat-sparkline {
     position: absolute;
     top: 0;
@@ -244,6 +284,41 @@ export const styles = css`
       rgba(65, 205, 82, 0.05) 100%);
     opacity: 0.5;
     z-index: 0;
+  }
+
+  .stat-sparkline-svg {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    opacity: 0.55;
+    z-index: 0;
+  }
+
+  .stat-sparkline-svg .sparkline {
+    fill: none;
+    stroke-width: 2;
+    stroke-linejoin: round;
+    stroke-linecap: round;
+  }
+
+  .stat-sparkline-svg .sparkline.voltage {
+    stroke: rgba(255, 255, 255, 0.22);
+  }
+
+  .stat-panel.flow-in .stat-sparkline-svg .sparkline.current,
+  .stat-panel.flow-in .stat-sparkline-svg .sparkline.power {
+    stroke: rgba(81, 207, 102, 0.5);
+  }
+
+  .stat-panel.flow-out .stat-sparkline-svg .sparkline.current,
+  .stat-panel.flow-out .stat-sparkline-svg .sparkline.power {
+    stroke: rgba(51, 154, 240, 0.5);
+  }
+
+  .stat-panel:not(.flow-in):not(.flow-out) .stat-sparkline-svg .sparkline.current,
+  .stat-panel:not(.flow-in):not(.flow-out) .stat-sparkline-svg .sparkline.power {
+    stroke: rgba(255, 255, 255, 0.18);
   }
 
   .stat-label {
@@ -264,6 +339,7 @@ export const styles = css`
 
   .delta-minmax-panel {
     padding: 10px 8px;
+    grid-column: 2 / span 2;
   }
 
   .delta-minmax-container {
@@ -314,6 +390,19 @@ export const styles = css`
     gap: 2px;
     width: 80px;
     flex: 0 0 auto;
+  }
+
+  .minmax-row {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    line-height: 1;
+  }
+
+  .minmax-icon {
+    --mdc-icon-size: 14px;
+    opacity: 0.85;
   }
 
   .max-value {
@@ -403,9 +492,9 @@ export const styles = css`
   }
 
   .cell.balancing-discharging {
-    border-color: #ff6b6b;
+    border-color: #339af0;
     animation: cell-balance-pulse 2s ease-in-out infinite;
-    box-shadow: 0 0 15px #ff6b6b;
+    box-shadow: 0 0 15px #339af0;
     position: relative;
   }
 
@@ -414,7 +503,7 @@ export const styles = css`
     position: absolute;
     inset: -4px;
     border-radius: 14px;
-    border: 2px solid #ff6b6b;
+    border: 2px solid #339af0;
     opacity: 0.5;
     animation: balance-ring-pulse 2s ease-in-out infinite;
   }
@@ -424,15 +513,15 @@ export const styles = css`
     position: absolute;
     inset: -8px;
     border-radius: 16px;
-    border: 1px solid #ff6b6b;
+    border: 1px solid #339af0;
     opacity: 0.3;
     animation: balance-ring-pulse 2s ease-in-out infinite 0.5s;
   }
 
   .cell.balancing-charging {
-    border-color: #51cf66;
+    border-color: #ff6b6b;
     animation: cell-balance-pulse 2s ease-in-out infinite;
-    box-shadow: 0 0 15px #51cf66;
+    box-shadow: 0 0 15px #ff6b6b;
     position: relative;
   }
 
@@ -441,7 +530,7 @@ export const styles = css`
     position: absolute;
     inset: -4px;
     border-radius: 14px;
-    border: 2px solid #51cf66;
+    border: 2px solid #ff6b6b;
     opacity: 0.5;
     animation: balance-ring-pulse 2s ease-in-out infinite;
   }
@@ -451,7 +540,7 @@ export const styles = css`
     position: absolute;
     inset: -8px;
     border-radius: 16px;
-    border: 1px solid #51cf66;
+    border: 1px solid #ff6b6b;
     opacity: 0.3;
     animation: balance-ring-pulse 2s ease-in-out infinite 0.5s;
   }
@@ -480,13 +569,13 @@ export const styles = css`
   }
 
   .balancing-discharging .balancing-indicator {
-    background: #ff6b6b;
-    box-shadow: 0 0 8px #ff6b6b;
+    background: #339af0;
+    box-shadow: 0 0 8px #339af0;
   }
 
   .balancing-charging .balancing-indicator {
-    background: #51cf66;
-    box-shadow: 0 0 8px #51cf66;
+    background: #ff6b6b;
+    box-shadow: 0 0 8px #ff6b6b;
   }
 
   @keyframes balancing-blink {
@@ -605,6 +694,10 @@ export const styles = css`
   @media (max-width: 600px) {
     .stats-grid {
       grid-template-columns: repeat(2, 1fr);
+    }
+
+    .delta-minmax-panel {
+      grid-column: 1 / -1;
     }
 
     .flow-section {

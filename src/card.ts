@@ -8,6 +8,17 @@ export class JkBmsReactorCard extends LitElement {
   @property({ attribute: false }) public hass!: HomeAssistant;
   @state() private _config!: JkBmsReactorCardConfig;
 
+  private _history = {
+    voltage: [] as number[],
+    current: [] as number[],
+    power: [] as number[],
+  };
+
+  private _lastSampleTs = 0;
+  private _sampleIntervalMs = 2000;
+  private _historyMax = 60;
+  private _historySeeded = false;
+
   static get styles() {
     return styles;
   }
@@ -53,6 +64,127 @@ export class JkBmsReactorCard extends LitElement {
       cells_prefix: 'sensor.jk_bms_cell_',
       cells_count: 16,
     };
+  }
+
+  protected updated(changedProperties: Map<string, unknown>) {
+    super.updated(changedProperties);
+
+    if (!changedProperties.has('hass')) return;
+    if (!this.hass || !this._config) return;
+
+    if (!this._historySeeded) {
+      this._historySeeded = true;
+      this._seedHistoryFromHa().catch(() => {
+        // ignore; local sampling will still work
+      });
+    }
+
+    const now = Date.now();
+    if (now - this._lastSampleTs < this._sampleIntervalMs) return;
+    this._lastSampleTs = now;
+
+    const packState = computePackState(this.hass, this._config);
+    const voltage = packState.voltage;
+    const current = packState.current;
+    const power = (voltage ?? 0) * (current ?? 0);
+
+    const push = (key: keyof typeof this._history, value: number | null) => {
+      if (value === null || value === undefined || Number.isNaN(value)) return;
+      const arr = this._history[key];
+      arr.push(value);
+      if (arr.length > this._historyMax) arr.splice(0, arr.length - this._historyMax);
+    };
+
+    push('voltage', voltage);
+    push('current', current);
+    push('power', power);
+
+    // Ensure sparklines repaint even if no other state changed
+    this.requestUpdate();
+  }
+
+  private _downsample(values: number[], max: number): number[] {
+    if (values.length <= max) return values;
+    const step = values.length / max;
+    const out: number[] = [];
+    for (let i = 0; i < max; i++) {
+      out.push(values[Math.floor(i * step)]);
+    }
+    return out;
+  }
+
+  private async _seedHistoryFromHa(): Promise<void> {
+    if (!this.hass?.callApi) return;
+    if (!this._config?.pack_voltage || !this._config?.current) return;
+
+    const start = new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString();
+    const entityIds = `${this._config.pack_voltage},${this._config.current}`;
+
+    const path = `history/period/${start}`;
+    const result = await this.hass.callApi<any>('GET', path, {
+      filter_entity_id: entityIds,
+      minimal_response: true,
+      no_attributes: true,
+      significant_changes_only: true,
+    });
+
+    if (!Array.isArray(result)) return;
+
+    const extract = (s: any): number | null => {
+      const raw = s?.s ?? s?.state;
+      const n = raw === undefined || raw === null ? NaN : Number(raw);
+      return Number.isFinite(n) ? n : null;
+    };
+
+    const perEntity: Record<string, number[]> = {};
+    for (const entityHistory of result) {
+      if (!Array.isArray(entityHistory) || entityHistory.length === 0) continue;
+      const first = entityHistory[0];
+      const entityId = first?.entity_id ?? first?.e;
+      if (!entityId) continue;
+
+      const vals: number[] = [];
+      for (const st of entityHistory) {
+        const v = extract(st);
+        if (v !== null) vals.push(v);
+      }
+      perEntity[entityId] = vals;
+    }
+
+    const vSeries = this._downsample(perEntity[this._config.pack_voltage] ?? [], this._historyMax);
+    const cSeries = this._downsample(perEntity[this._config.current] ?? [], this._historyMax);
+
+    if (vSeries.length) this._history.voltage = vSeries;
+    if (cSeries.length) this._history.current = cSeries;
+
+    const n = Math.min(this._history.voltage.length, this._history.current.length);
+    if (n > 0) {
+      const p: number[] = [];
+      for (let i = 0; i < n; i++) {
+        p.push(this._history.voltage[i] * this._history.current[i]);
+      }
+      this._history.power = p;
+    }
+
+    this.requestUpdate();
+  }
+
+  private _sparklinePoints(values: number[], width = 100, height = 30): string {
+    if (!values.length) return '';
+
+    const min = Math.min(...values);
+    const max = Math.max(...values);
+    const span = max - min;
+
+    const stepX = values.length > 1 ? width / (values.length - 1) : 0;
+    return values
+      .map((v, i) => {
+        const x = i * stepX;
+        const t = span === 0 ? 0.5 : (v - min) / span;
+        const y = height - t * height;
+        return `${x.toFixed(2)},${y.toFixed(2)}`;
+      })
+      .join(' ');
   }
 
   private _getCellVoltageClass(voltage: number, minCell: number | null, maxCell: number | null): string {
@@ -137,9 +269,9 @@ export class JkBmsReactorCard extends LitElement {
     const chargeDotSize = isChargingFlow ? dotRadiusForPower(power) : 3;
     const dischargeDotSize = isDischargingFlow ? dotRadiusForPower(power) : 3;
 
-    // Calculate SOC progress (283 is circumference of 45px radius circle)
-    const circumference = 283;
-    const progress = circumference - (soc / 100) * circumference;
+    const segCount = 360;
+    const activeSegs = Math.max(0, Math.min(segCount, Math.round((soc / 100) * segCount)));
+    const socGlowClass = isChargingFlow ? 'charging' : isDischargingFlow ? 'discharging' : '';
 
     return html`
       <div class="flow-section">
@@ -162,11 +294,19 @@ export class JkBmsReactorCard extends LitElement {
 
         <!-- Reactor Ring (SOC Progress) -->
         <div class="reactor-ring-container">
-          <svg class="soc-progress" viewBox="0 0 100 100">
-            <circle class="soc-bg" cx="50" cy="50" r="45"></circle>
-            <circle class="soc-fill ${packState.isBalancing ? 'balancing-active' : ''}" 
-                    cx="50" cy="50" r="45"
-                    style="stroke-dasharray: ${circumference}; stroke-dashoffset: ${progress};"></circle>
+          <svg class="soc-segmented ${socGlowClass}" viewBox="0 0 120 120" aria-hidden="true">
+            <g transform="translate(60 60)">
+              ${Array.from({ length: segCount }, (_, i) => {
+      const isActive = i < activeSegs;
+      return svg`
+                  <line
+                    class="soc-seg ${isActive ? 'active' : 'inactive'}"
+                    x1="0" y1="-52" x2="0" y2="-58"
+                    transform="rotate(${i})"
+                  ></line>
+                `;
+    })}
+            </g>
           </svg>
           <div class="reactor-ring ${packState.isBalancing ? 'balancing-active' : ''}">
             <div class="soc-label">SoC</div>
@@ -233,19 +373,25 @@ export class JkBmsReactorCard extends LitElement {
       <!-- Stats Panels with sparklines -->
       <div class="stats-grid">
         <div class="stat-panel">
-          <div class="stat-sparkline"></div>
+          <svg class="stat-sparkline-svg" viewBox="0 0 100 30" preserveAspectRatio="none" aria-hidden="true">
+            <polyline class="sparkline voltage" points="${this._sparklinePoints(this._history.voltage)}"></polyline>
+          </svg>
           <div class="stat-label">Voltage</div>
           <div class="stat-value">${formatNumber(packState.voltage, 2)} V</div>
         </div>
-        <div class="stat-panel">
-          <div class="stat-sparkline"></div>
+        <div class="stat-panel ${current > 0.5 ? 'flow-in' : current < -0.5 ? 'flow-out' : ''}">
+          <svg class="stat-sparkline-svg" viewBox="0 0 100 30" preserveAspectRatio="none" aria-hidden="true">
+            <polyline class="sparkline current" points="${this._sparklinePoints(this._history.current)}"></polyline>
+          </svg>
           <div class="stat-label">Current</div>
           <div class="stat-value">${formatNumber(packState.current, 2)} A</div>
         </div>
-        <div class="stat-panel">
-          <div class="stat-sparkline"></div>
+        <div class="stat-panel ${current > 0.5 ? 'flow-in' : current < -0.5 ? 'flow-out' : ''}">
+          <svg class="stat-sparkline-svg" viewBox="0 0 100 30" preserveAspectRatio="none" aria-hidden="true">
+            <polyline class="sparkline power" points="${this._sparklinePoints(this._history.power)}"></polyline>
+          </svg>
           <div class="stat-label">Power</div>
-          <div class="stat-value">${formatNumber(power, 1)} W</div>
+          <div class="stat-value">${formatNumber(Math.abs((packState.voltage ?? 0) * (packState.current ?? 0)), 1)} W</div>
         </div>
         <div class="stat-panel delta-minmax-panel">
           <div class="stat-sparkline"></div>
@@ -256,9 +402,15 @@ export class JkBmsReactorCard extends LitElement {
             </div>
             <div class="delta-divider">|</div>
             <div class="delta-right">
-              <div class="max-value">${formatNumber(packState.maxCell, 3)}V</div>
+              <div class="minmax-row max">
+                <ha-icon class="minmax-icon" icon="mdi:arrow-up-bold"></ha-icon>
+                <span class="max-value">${formatNumber(packState.maxCell, 3)}V</span>
+              </div>
               <div class="minmax-divider"></div>
-              <div class="min-value">${formatNumber(packState.minCell, 3)}V</div>
+              <div class="minmax-row min">
+                <ha-icon class="minmax-icon" icon="mdi:arrow-down-bold"></ha-icon>
+                <span class="min-value">${formatNumber(packState.minCell, 3)}V</span>
+              </div>
             </div>
           </div>
         </div>
