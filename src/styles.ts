@@ -8,6 +8,8 @@ export const styles = css`
     --discharge-color-dim: rgba(48, 144, 199, 0.2);
     --solar-color: #ffd30f;
     --balancing-color: #ff6333;
+    --standby-color: rgba(180, 180, 180, 0.75);
+    --standby-glow: rgba(180, 180, 180, 0.18);
     --balance-charge-color: #ff6b6b;
     --balance-discharge-color: #339af0;
     --min-cell-color: #ff6b6b;
@@ -119,6 +121,7 @@ export const styles = css`
     width: 160px;
     height: 160px;
     margin: 0 auto;
+    z-index: 2;
   }
 
   .soc-progress {
@@ -151,8 +154,8 @@ export const styles = css`
   }
 
   .soc-segmented.standby .soc-seg.active {
-    stroke: rgba(255, 255, 255, 0.55);
-    filter: drop-shadow(0 0 2px rgba(255, 255, 255, 0.18));
+    stroke: var(--standby-color);
+    filter: drop-shadow(0 0 2px var(--standby-glow));
   }
 
   .soc-segmented.charging .soc-seg.active {
@@ -222,6 +225,39 @@ export const styles = css`
     line-height: 1;
   }
 
+  .reactor-ring.charging .soc-value {
+    color: var(--accent-color);
+    text-shadow: 0 0 10px var(--flow-in-glow);
+  }
+
+  .reactor-ring.discharging .soc-value {
+    color: var(--discharge-color);
+    text-shadow: 0 0 10px var(--flow-out-glow);
+  }
+
+  .reactor-ring.standby .soc-value {
+    color: var(--standby-color);
+    text-shadow: 0 0 8px var(--standby-glow);
+  }
+
+  .reactor-ring.tint-details.charging .soc-label,
+  .reactor-ring.tint-details.charging .capacity-text {
+    color: var(--accent-color);
+    text-shadow: 0 0 8px var(--flow-in-glow);
+  }
+
+  .reactor-ring.tint-details.discharging .soc-label,
+  .reactor-ring.tint-details.discharging .capacity-text {
+    color: var(--discharge-color);
+    text-shadow: 0 0 8px var(--flow-out-glow);
+  }
+
+  .reactor-ring.tint-details.standby .soc-label,
+  .reactor-ring.tint-details.standby .capacity-text {
+    color: var(--standby-color);
+    text-shadow: 0 0 6px var(--standby-glow);
+  }
+
   .capacity-text {
     font-size: 0.85em;
     color: var(--secondary-text-color);
@@ -236,7 +272,7 @@ export const styles = css`
     width: 100%;
     height: 100%;
     pointer-events: none;
-    z-index: 1;
+    z-index: 0;
   }
 
   .flow-line {
@@ -476,7 +512,7 @@ export const styles = css`
   .cell.balancing {
     border-color: var(--balancing-color);
     animation: cell-balance-pulse 2s ease-in-out infinite;
-    box-shadow: 0 0 15px var(--balancing-color);
+    box-shadow: 0 0 10px var(--balancing-color);
     position: relative;
   }
 
@@ -543,16 +579,7 @@ export const styles = css`
 
   .cell-flow-path.active {
     opacity: 1;
-    stroke-dasharray: 6 8;
     stroke-width: 3;
-  }
-
-  .cell-flow-column.dir-down .cell-flow-path.active {
-    animation: cell-flow-dash-down 1.1s linear infinite;
-  }
-
-  .cell-flow-column.dir-up .cell-flow-path.active {
-    animation: cell-flow-dash-up 1.1s linear infinite;
   }
 
   .cell-flow-dot {
@@ -560,15 +587,6 @@ export const styles = css`
     filter: drop-shadow(0 0 3px rgba(255, 255, 255, 0.25));
   }
 
-  @keyframes cell-flow-dash-down {
-    from { stroke-dashoffset: 0; }
-    to { stroke-dashoffset: -28; }
-  }
-
-  @keyframes cell-flow-dash-up {
-    from { stroke-dashoffset: 0; }
-    to { stroke-dashoffset: 28; }
-  }
 
   .reactor-grid.compact {
     row-gap: 6px;
@@ -626,7 +644,7 @@ export const styles = css`
   .cell.balancing-discharging {
     border-color: var(--balance-discharge-color);
     animation: cell-balance-pulse 2s ease-in-out infinite;
-    box-shadow: 0 0 15px var(--balance-discharge-color);
+    box-shadow: 0 0 10px var(--balance-discharge-color);
     position: relative;
   }
 
@@ -653,7 +671,7 @@ export const styles = css`
   .cell.balancing-charging {
     border-color: var(--balance-charge-color);
     animation: cell-balance-pulse 2s ease-in-out infinite;
-    box-shadow: 0 0 15px var(--balance-charge-color);
+    box-shadow: 0 0 10px var(--balance-charge-color);
     position: relative;
   }
 
@@ -683,7 +701,7 @@ export const styles = css`
       opacity: 0.3;
     }
     50% {
-      transform: scale(1.1);
+      transform: scale(1.05);
       opacity: 0.6;
     }
   }
@@ -720,8 +738,8 @@ export const styles = css`
       transform: scale(1);
     }
     50% {
-      transform: scale(1.05);
-      box-shadow: 0 0 20px var(--balancing-color);
+      transform: scale(1.025);
+      box-shadow: 0 0 10px var(--balancing-color);
     }
   }
 

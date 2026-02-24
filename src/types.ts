@@ -63,6 +63,8 @@ export interface JkBmsReactorCardConfig {
     color_accent?: string;
     color_charge?: string;
     color_discharge?: string;
+    color_standby?: string;
+    tint_soc_details?: boolean;
     color_balance_charge?: string;
     color_balance_discharge?: string;
     color_min_cell?: string;

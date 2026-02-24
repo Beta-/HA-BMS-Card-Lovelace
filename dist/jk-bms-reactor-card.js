@@ -721,6 +721,8 @@ const styles = i$3`
     --discharge-color-dim: rgba(48, 144, 199, 0.2);
     --solar-color: #ffd30f;
     --balancing-color: #ff6333;
+    --standby-color: rgba(180, 180, 180, 0.75);
+    --standby-glow: rgba(180, 180, 180, 0.18);
     --balance-charge-color: #ff6b6b;
     --balance-discharge-color: #339af0;
     --min-cell-color: #ff6b6b;
@@ -832,6 +834,7 @@ const styles = i$3`
     width: 160px;
     height: 160px;
     margin: 0 auto;
+    z-index: 2;
   }
 
   .soc-progress {
@@ -864,8 +867,8 @@ const styles = i$3`
   }
 
   .soc-segmented.standby .soc-seg.active {
-    stroke: rgba(255, 255, 255, 0.55);
-    filter: drop-shadow(0 0 2px rgba(255, 255, 255, 0.18));
+    stroke: var(--standby-color);
+    filter: drop-shadow(0 0 2px var(--standby-glow));
   }
 
   .soc-segmented.charging .soc-seg.active {
@@ -935,6 +938,39 @@ const styles = i$3`
     line-height: 1;
   }
 
+  .reactor-ring.charging .soc-value {
+    color: var(--accent-color);
+    text-shadow: 0 0 10px var(--flow-in-glow);
+  }
+
+  .reactor-ring.discharging .soc-value {
+    color: var(--discharge-color);
+    text-shadow: 0 0 10px var(--flow-out-glow);
+  }
+
+  .reactor-ring.standby .soc-value {
+    color: var(--standby-color);
+    text-shadow: 0 0 8px var(--standby-glow);
+  }
+
+  .reactor-ring.tint-details.charging .soc-label,
+  .reactor-ring.tint-details.charging .capacity-text {
+    color: var(--accent-color);
+    text-shadow: 0 0 8px var(--flow-in-glow);
+  }
+
+  .reactor-ring.tint-details.discharging .soc-label,
+  .reactor-ring.tint-details.discharging .capacity-text {
+    color: var(--discharge-color);
+    text-shadow: 0 0 8px var(--flow-out-glow);
+  }
+
+  .reactor-ring.tint-details.standby .soc-label,
+  .reactor-ring.tint-details.standby .capacity-text {
+    color: var(--standby-color);
+    text-shadow: 0 0 6px var(--standby-glow);
+  }
+
   .capacity-text {
     font-size: 0.85em;
     color: var(--secondary-text-color);
@@ -949,7 +985,7 @@ const styles = i$3`
     width: 100%;
     height: 100%;
     pointer-events: none;
-    z-index: 1;
+    z-index: 0;
   }
 
   .flow-line {
@@ -1189,7 +1225,7 @@ const styles = i$3`
   .cell.balancing {
     border-color: var(--balancing-color);
     animation: cell-balance-pulse 2s ease-in-out infinite;
-    box-shadow: 0 0 15px var(--balancing-color);
+    box-shadow: 0 0 10px var(--balancing-color);
     position: relative;
   }
 
@@ -1256,16 +1292,7 @@ const styles = i$3`
 
   .cell-flow-path.active {
     opacity: 1;
-    stroke-dasharray: 6 8;
     stroke-width: 3;
-  }
-
-  .cell-flow-column.dir-down .cell-flow-path.active {
-    animation: cell-flow-dash-down 1.1s linear infinite;
-  }
-
-  .cell-flow-column.dir-up .cell-flow-path.active {
-    animation: cell-flow-dash-up 1.1s linear infinite;
   }
 
   .cell-flow-dot {
@@ -1273,15 +1300,6 @@ const styles = i$3`
     filter: drop-shadow(0 0 3px rgba(255, 255, 255, 0.25));
   }
 
-  @keyframes cell-flow-dash-down {
-    from { stroke-dashoffset: 0; }
-    to { stroke-dashoffset: -28; }
-  }
-
-  @keyframes cell-flow-dash-up {
-    from { stroke-dashoffset: 0; }
-    to { stroke-dashoffset: 28; }
-  }
 
   .reactor-grid.compact {
     row-gap: 6px;
@@ -1339,7 +1357,7 @@ const styles = i$3`
   .cell.balancing-discharging {
     border-color: var(--balance-discharge-color);
     animation: cell-balance-pulse 2s ease-in-out infinite;
-    box-shadow: 0 0 15px var(--balance-discharge-color);
+    box-shadow: 0 0 10px var(--balance-discharge-color);
     position: relative;
   }
 
@@ -1366,7 +1384,7 @@ const styles = i$3`
   .cell.balancing-charging {
     border-color: var(--balance-charge-color);
     animation: cell-balance-pulse 2s ease-in-out infinite;
-    box-shadow: 0 0 15px var(--balance-charge-color);
+    box-shadow: 0 0 10px var(--balance-charge-color);
     position: relative;
   }
 
@@ -1396,7 +1414,7 @@ const styles = i$3`
       opacity: 0.3;
     }
     50% {
-      transform: scale(1.1);
+      transform: scale(1.05);
       opacity: 0.6;
     }
   }
@@ -1433,8 +1451,8 @@ const styles = i$3`
       transform: scale(1);
     }
     50% {
-      transform: scale(1.05);
-      box-shadow: 0 0 20px var(--balancing-color);
+      transform: scale(1.025);
+      box-shadow: 0 0 10px var(--balancing-color);
     }
   }
 
@@ -1639,7 +1657,8 @@ class JkBmsReactorCard extends i {
       pack_voltage_max: config.pack_voltage_max,
       capacity_remaining: config.capacity_remaining,
       capacity_total_ah: config.capacity_total_ah,
-      cell_order_mode: config.cell_order_mode ?? "linear"
+      cell_order_mode: config.cell_order_mode ?? "linear",
+      tint_soc_details: config.tint_soc_details ?? false
     };
   }
   _sanitizeCssToken(value) {
@@ -1665,6 +1684,7 @@ class JkBmsReactorCard extends i {
       "--accent-color": c2.color_accent ? this._sanitizeCssToken(c2.color_accent) : void 0,
       "--solar-color": c2.color_charge ? this._sanitizeCssToken(c2.color_charge) : void 0,
       "--discharge-color": c2.color_discharge ? this._sanitizeCssToken(c2.color_discharge) : void 0,
+      "--standby-color": c2.color_standby ? this._sanitizeCssToken(c2.color_standby) : void 0,
       "--balance-charge-color": c2.color_balance_charge ? this._sanitizeCssToken(c2.color_balance_charge) : void 0,
       "--balance-discharge-color": c2.color_balance_discharge ? this._sanitizeCssToken(c2.color_balance_discharge) : void 0,
       "--min-cell-color": c2.color_min_cell ? this._sanitizeCssToken(c2.color_min_cell) : void 0,
@@ -1672,14 +1692,17 @@ class JkBmsReactorCard extends i {
     };
     const accent = c2.color_accent ? this._sanitizeCssToken(c2.color_accent) : "";
     const discharge = c2.color_discharge ? this._sanitizeCssToken(c2.color_discharge) : "";
+    const standby = c2.color_standby ? this._sanitizeCssToken(c2.color_standby) : "";
     const flowInGlow = this._hexToRgba(accent, 0.22);
     const flowInBorder = this._hexToRgba(accent, 0.35);
     const flowOutGlow = this._hexToRgba(discharge, 0.22);
     const flowOutBorder = this._hexToRgba(discharge, 0.35);
+    const standbyGlow = this._hexToRgba(standby, 0.18);
     if (flowInGlow) cssVars["--flow-in-glow"] = flowInGlow;
     if (flowInBorder) cssVars["--flow-in-border"] = flowInBorder;
     if (flowOutGlow) cssVars["--flow-out-glow"] = flowOutGlow;
     if (flowOutBorder) cssVars["--flow-out-border"] = flowOutBorder;
+    if (standbyGlow) cssVars["--standby-glow"] = standbyGlow;
     return Object.entries(cssVars).filter(([, v2]) => v2 !== void 0 && v2 !== "").map(([k2, v2]) => `${k2}: ${v2}`).join("; ");
   }
   getCardSize() {
@@ -1960,8 +1983,8 @@ class JkBmsReactorCard extends i {
     })}
             </g>
           </svg>
-          <div class="reactor-ring ${packState.isBalancing ? "balancing-active" : ""}">
-            <div class="soc-label">SoC</div>
+          <div class="reactor-ring ${socGlowClass} ${this._config.tint_soc_details ? "tint-details" : ""} ${packState.isBalancing ? "balancing-active" : ""}">
+            <div class="soc-label">%</div>
             <div class="soc-value">${formatNumber(soc, 0)}%</div>
             <div class="capacity-text">
               ${packState.isBalancing && packState.balanceCurrent !== null ? b`${formatNumber(packState.balanceCurrent, 2)} A` : capacityLeftAh !== null ? b`${formatNumber(capacityLeftAh, 1)} Ah` : b`${formatNumber(voltage, 1)}V`}
@@ -2181,28 +2204,19 @@ class JkBmsReactorCard extends i {
         <div class="reactor-grid ${compact ? "compact" : ""}">
           <div class="cell-flow-column ${showConnector ? "active" : ""} ${flowDirClass}" style="grid-row: 1 / span ${Math.max(1, rows)};">
             <svg class="cell-flow-svg" viewBox="0 0 100 ${Math.max(1, rows) * 10}" preserveAspectRatio="none" aria-hidden="true">
-              <defs>
-                <linearGradient
-                  id="cellFlowGrad-${this._uid}"
-                  gradientUnits="userSpaceOnUse"
-                  x1="${xStart}"
-                  y1="${yStart}"
-                  x2="${xEnd}"
-                  y2="${yEnd}"
-                >
-                  <stop offset="0%" stop-color="var(--balance-discharge-color)"></stop>
-                  <stop offset="100%" stop-color="var(--balance-charge-color)"></stop>
-                </linearGradient>
-              </defs>
               <path
                 id="cellFlowPath-${this._uid}"
                 class="cell-flow-path ${showConnector ? "active" : ""}"
                 d="${connectorPath()}"
-                stroke="url(#cellFlowGrad-${this._uid})"
               ></path>
               ${showConnector ? w`
-                <circle class="cell-flow-dot" r="3.2" fill="url(#cellFlowGrad-${this._uid})">
+                <circle class="cell-flow-dot" r="3.2" fill="var(--balance-discharge-color)">
                   <animateMotion dur="1.8s" repeatCount="indefinite" path="${connectorPath()}" />
+                  <animate attributeName="opacity" dur="1.8s" repeatCount="indefinite" values="1;0" />
+                </circle>
+                <circle class="cell-flow-dot" r="3.2" fill="var(--balance-charge-color)">
+                  <animateMotion dur="1.8s" repeatCount="indefinite" path="${connectorPath()}" />
+                  <animate attributeName="opacity" dur="1.8s" repeatCount="indefinite" values="0;1" />
                 </circle>
               ` : ""}
             </svg>
@@ -2427,7 +2441,8 @@ class JkBmsReactorCardEditor extends i {
       pack_voltage_min: config.pack_voltage_min,
       pack_voltage_max: config.pack_voltage_max,
       capacity_remaining: config.capacity_remaining ?? "",
-      capacity_total_ah: config.capacity_total_ah
+      capacity_total_ah: config.capacity_total_ah,
+      tint_soc_details: config.tint_soc_details ?? false
     };
   }
   _entityPickerTag() {
@@ -2794,6 +2809,17 @@ class JkBmsReactorCardEditor extends i {
         <div class="section-title">Colors (Optional)</div>
 
         <div class="option">
+          <ha-switch
+            .checked=${this._config.tint_soc_details ?? false}
+            .configValue=${"tint_soc_details"}
+            @change=${this._toggleChanged}
+          >
+            <span slot="label">Tint SOC label + details</span>
+          </ha-switch>
+          <div class="description">Apply charging/discharging/standby colors to the SOC label and the line under it</div>
+        </div>
+
+        <div class="option">
           <label>Accent / Charging Color</label>
           <ha-textfield
             .value=${this._config.color_accent || ""}
@@ -2823,6 +2849,17 @@ class JkBmsReactorCardEditor extends i {
             placeholder="#3090c7"
           ></ha-textfield>
           <div class="description">Used for discharge glow + SOC segments</div>
+        </div>
+
+        <div class="option">
+          <label>SOC Standby Color</label>
+          <ha-textfield
+            .value=${this._config.color_standby || ""}
+            .configValue=${"color_standby"}
+            @input=${this._valueChanged}
+            placeholder="rgba(180, 180, 180, 0.75)"
+          ></ha-textfield>
+          <div class="description">SOC ring color when neither charging nor discharging</div>
         </div>
 
         <div class="option">

@@ -57,6 +57,8 @@ export class JkBmsReactorCard extends LitElement {
       capacity_total_ah: config.capacity_total_ah,
 
       cell_order_mode: config.cell_order_mode ?? 'linear',
+
+      tint_soc_details: config.tint_soc_details ?? false,
     };
   }
 
@@ -86,6 +88,7 @@ export class JkBmsReactorCard extends LitElement {
       '--accent-color': c.color_accent ? this._sanitizeCssToken(c.color_accent) : undefined,
       '--solar-color': c.color_charge ? this._sanitizeCssToken(c.color_charge) : undefined,
       '--discharge-color': c.color_discharge ? this._sanitizeCssToken(c.color_discharge) : undefined,
+      '--standby-color': c.color_standby ? this._sanitizeCssToken(c.color_standby) : undefined,
       '--balance-charge-color': c.color_balance_charge ? this._sanitizeCssToken(c.color_balance_charge) : undefined,
       '--balance-discharge-color': c.color_balance_discharge ? this._sanitizeCssToken(c.color_balance_discharge) : undefined,
       '--min-cell-color': c.color_min_cell ? this._sanitizeCssToken(c.color_min_cell) : undefined,
@@ -95,15 +98,18 @@ export class JkBmsReactorCard extends LitElement {
     // Derive glow/border colors from hex if possible
     const accent = c.color_accent ? this._sanitizeCssToken(c.color_accent) : '';
     const discharge = c.color_discharge ? this._sanitizeCssToken(c.color_discharge) : '';
+    const standby = c.color_standby ? this._sanitizeCssToken(c.color_standby) : '';
     const flowInGlow = this._hexToRgba(accent, 0.22);
     const flowInBorder = this._hexToRgba(accent, 0.35);
     const flowOutGlow = this._hexToRgba(discharge, 0.22);
     const flowOutBorder = this._hexToRgba(discharge, 0.35);
+    const standbyGlow = this._hexToRgba(standby, 0.18);
 
     if (flowInGlow) cssVars['--flow-in-glow'] = flowInGlow;
     if (flowInBorder) cssVars['--flow-in-border'] = flowInBorder;
     if (flowOutGlow) cssVars['--flow-out-glow'] = flowOutGlow;
     if (flowOutBorder) cssVars['--flow-out-border'] = flowOutBorder;
+    if (standbyGlow) cssVars['--standby-glow'] = standbyGlow;
 
     return Object.entries(cssVars)
       .filter(([, v]) => v !== undefined && v !== '')
@@ -461,8 +467,8 @@ export class JkBmsReactorCard extends LitElement {
     })}
             </g>
           </svg>
-          <div class="reactor-ring ${packState.isBalancing ? 'balancing-active' : ''}">
-            <div class="soc-label">SoC</div>
+          <div class="reactor-ring ${socGlowClass} ${this._config.tint_soc_details ? 'tint-details' : ''} ${packState.isBalancing ? 'balancing-active' : ''}">
+            <div class="soc-label">%</div>
             <div class="soc-value">${formatNumber(soc, 0)}%</div>
             <div class="capacity-text">
               ${packState.isBalancing && packState.balanceCurrent !== null
@@ -704,28 +710,19 @@ export class JkBmsReactorCard extends LitElement {
         <div class="reactor-grid ${compact ? 'compact' : ''}">
           <div class="cell-flow-column ${showConnector ? 'active' : ''} ${flowDirClass}" style="grid-row: 1 / span ${Math.max(1, rows)};">
             <svg class="cell-flow-svg" viewBox="0 0 100 ${Math.max(1, rows) * 10}" preserveAspectRatio="none" aria-hidden="true">
-              <defs>
-                <linearGradient
-                  id="cellFlowGrad-${this._uid}"
-                  gradientUnits="userSpaceOnUse"
-                  x1="${xStart}"
-                  y1="${yStart}"
-                  x2="${xEnd}"
-                  y2="${yEnd}"
-                >
-                  <stop offset="0%" stop-color="var(--balance-discharge-color)"></stop>
-                  <stop offset="100%" stop-color="var(--balance-charge-color)"></stop>
-                </linearGradient>
-              </defs>
               <path
                 id="cellFlowPath-${this._uid}"
                 class="cell-flow-path ${showConnector ? 'active' : ''}"
                 d="${connectorPath()}"
-                stroke="url(#cellFlowGrad-${this._uid})"
               ></path>
               ${showConnector ? svg`
-                <circle class="cell-flow-dot" r="3.2" fill="url(#cellFlowGrad-${this._uid})">
+                <circle class="cell-flow-dot" r="3.2" fill="var(--balance-discharge-color)">
                   <animateMotion dur="1.8s" repeatCount="indefinite" path="${connectorPath()}" />
+                  <animate attributeName="opacity" dur="1.8s" repeatCount="indefinite" values="1;0" />
+                </circle>
+                <circle class="cell-flow-dot" r="3.2" fill="var(--balance-charge-color)">
+                  <animateMotion dur="1.8s" repeatCount="indefinite" path="${connectorPath()}" />
+                  <animate attributeName="opacity" dur="1.8s" repeatCount="indefinite" values="0;1" />
                 </circle>
               ` : ''}
             </svg>

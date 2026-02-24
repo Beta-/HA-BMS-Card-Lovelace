@@ -144,6 +144,8 @@ export class JkBmsReactorCardEditor extends LitElement {
       pack_voltage_max: config.pack_voltage_max,
       capacity_remaining: config.capacity_remaining ?? '',
       capacity_total_ah: config.capacity_total_ah,
+
+      tint_soc_details: config.tint_soc_details ?? false,
     };
   }
 
@@ -524,6 +526,17 @@ export class JkBmsReactorCardEditor extends LitElement {
         <div class="section-title">Colors (Optional)</div>
 
         <div class="option">
+          <ha-switch
+            .checked=${this._config.tint_soc_details ?? false}
+            .configValue=${'tint_soc_details'}
+            @change=${this._toggleChanged}
+          >
+            <span slot="label">Tint SOC label + details</span>
+          </ha-switch>
+          <div class="description">Apply charging/discharging/standby colors to the SOC label and the line under it</div>
+        </div>
+
+        <div class="option">
           <label>Accent / Charging Color</label>
           <ha-textfield
             .value=${this._config.color_accent || ''}
@@ -553,6 +566,17 @@ export class JkBmsReactorCardEditor extends LitElement {
             placeholder="#3090c7"
           ></ha-textfield>
           <div class="description">Used for discharge glow + SOC segments</div>
+        </div>
+
+        <div class="option">
+          <label>SOC Standby Color</label>
+          <ha-textfield
+            .value=${this._config.color_standby || ''}
+            .configValue=${'color_standby'}
+            @input=${this._valueChanged}
+            placeholder="rgba(180, 180, 180, 0.75)"
+          ></ha-textfield>
+          <div class="description">SOC ring color when neither charging nor discharging</div>
         </div>
 
         <div class="option">
