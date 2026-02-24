@@ -55,6 +55,15 @@ export const styles = css`
     transition: all 0.3s ease;
   }
 
+  .icon-circle.clickable {
+    cursor: pointer;
+  }
+
+  .icon-circle.clickable:hover {
+    transform: scale(1.1);
+    border-color: var(--accent-color);
+  }
+
   .icon-circle ha-icon {
     --mdc-icon-size: 32px;
     color: #666;
@@ -89,6 +98,48 @@ export const styles = css`
     font-size: 0.85em;
   }
 
+  .node-current {
+    font-size: 0.9em;
+    font-weight: bold;
+    color: var(--accent-color);
+    margin-top: 2px;
+  }
+
+  /* Reactor Ring Container with Progress */
+  .reactor-ring-container {
+    position: relative;
+    width: 160px;
+    height: 160px;
+    margin: 0 auto;
+  }
+
+  .soc-progress {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    transform: rotate(-90deg);
+  }
+
+  .soc-bg {
+    fill: none;
+    stroke: var(--panel-bg);
+    stroke-width: 8;
+  }
+
+  .soc-fill {
+    fill: none;
+    stroke: var(--accent-color);
+    stroke-width: 8;
+    stroke-linecap: round;
+    transition: stroke-dashoffset 0.5s ease, stroke 0.3s ease;
+  }
+
+  .soc-fill.balancing-active {
+    stroke: var(--balancing-color);
+  }
+
   .status-on {
     color: var(--accent-color);
     font-weight: bold;
@@ -100,37 +151,19 @@ export const styles = css`
 
   /* Reactor Ring - Central SOC Display */
   .reactor-ring {
-    width: 160px;
-    height: 160px;
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 130px;
+    height: 130px;
     border-radius: 50%;
-    border: 6px solid var(--accent-color);
-    box-shadow: 0 0 20px var(--accent-color-dim);
     display: flex;
     flex-direction: column;
     align-items: center;
     justify-content: center;
     background: var(--card-background-color);
-    margin: 0 auto;
-    position: relative;
-    z-index: 2;
     transition: all 0.3s ease;
-  }
-
-  .reactor-ring.balancing-active {
-    border-color: var(--balancing-color);
-    box-shadow: 0 0 30px var(--balancing-color);
-    animation: reactor-pulse 2s ease-in-out infinite;
-  }
-
-  @keyframes reactor-pulse {
-    0%, 100% {
-      transform: scale(1);
-      box-shadow: 0 0 20px var(--balancing-color);
-    }
-    50% {
-      transform: scale(1.05);
-      box-shadow: 0 0 40px var(--balancing-color);
-    }
   }
 
   .soc-label {
@@ -163,35 +196,22 @@ export const styles = css`
     z-index: 1;
   }
 
-  .flow-path {
-    fill: none;
-    stroke-width: 2;
-    stroke-dasharray: 8;
+  .flow-line {
+    stroke-width: 3;
     transition: stroke 0.3s ease;
   }
 
-  .path-active-charge {
+  .flow-line.active-charge {
     stroke: var(--solar-color);
-    animation: flow-dash 1s linear infinite;
   }
 
-  .path-active-discharge {
+  .flow-line.active-discharge {
     stroke: var(--discharge-color);
-    animation: flow-dash 1s linear infinite;
   }
 
-  .path-inactive {
+  .flow-line.inactive {
     stroke: #444;
-    stroke-dasharray: 0;
-  }
-
-  @keyframes flow-dash {
-    from {
-      stroke-dashoffset: 16;
-    }
-    to {
-      stroke-dashoffset: 0;
-    }
+    opacity: 0.3;
   }
 
   /* Stats Grid */
@@ -208,18 +228,94 @@ export const styles = css`
     border-radius: 10px;
     padding: 12px 8px;
     text-align: center;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .stat-sparkline {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: linear-gradient(135deg, 
+      rgba(65, 205, 82, 0.05) 0%, 
+      rgba(65, 205, 82, 0.15) 50%,
+      rgba(65, 205, 82, 0.05) 100%);
+    opacity: 0.5;
+    z-index: 0;
   }
 
   .stat-label {
     font-size: 0.85em;
     color: var(--secondary-text-color);
     margin-bottom: 4px;
+    position: relative;
+    z-index: 1;
   }
 
   .stat-value {
     font-size: 1.3em;
     font-weight: bold;
     color: var(--primary-text-color);
+    position: relative;
+    z-index: 1;
+  }
+
+  .delta-minmax-panel {
+    padding: 8px;
+  }
+
+  .delta-minmax-container {
+    position: relative;
+    z-index: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+  }
+
+  .delta-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 0.95em;
+  }
+
+  .delta-label {
+    font-size: 0.85em;
+    color: var(--secondary-text-color);
+    font-weight: bold;
+  }
+
+  .delta-value {
+    font-weight: bold;
+    color: var(--primary-text-color);
+  }
+
+  .delta-separator {
+    color: var(--secondary-text-color);
+    opacity: 0.5;
+  }
+
+  .max-value {
+    font-weight: bold;
+    color: #51cf66;
+    font-size: 1em;
+  }
+
+  .min-row {
+    display: flex;
+    justify-content: center;
+    padding-top: 2px;
+    border-top: 1px solid var(--divider-color);
+    width: 100%;
+  }
+
+  .min-value {
+    font-weight: bold;
+    color: #ff6b6b;
+    font-size: 1em;
   }
 
   /* Reactor Grid - Cell Display */
@@ -233,6 +329,18 @@ export const styles = css`
     grid-template-columns: repeat(4, 1fr);
     gap: 8px;
     position: relative;
+  }
+
+  .reactor-grid.compact {
+    gap: 6px;
+  }
+
+  .reactor-grid.compact .cell {
+    padding: 6px;
+  }
+
+  .reactor-grid.compact .cell-voltage {
+    font-size: 13px;
   }
 
   .cell {
@@ -249,29 +357,56 @@ export const styles = css`
     overflow: hidden;
   }
 
-  .cell.balancing {
-    border-color: var(--balancing-color);
+  .cell.balancing-discharging {
+    border-color: #ff6b6b;
     animation: cell-balance-pulse 2s ease-in-out infinite;
-    box-shadow: 0 0 15px var(--balancing-color);
+    box-shadow: 0 0 15px #ff6b6b;
     position: relative;
   }
 
-  .cell.balancing::before {
+  .cell.balancing-discharging::before {
     content: '';
     position: absolute;
     inset: -4px;
     border-radius: 14px;
-    border: 2px solid var(--balancing-color);
+    border: 2px solid #ff6b6b;
     opacity: 0.5;
     animation: balance-ring-pulse 2s ease-in-out infinite;
   }
 
-  .cell.balancing::after {
+  .cell.balancing-discharging::after {
     content: '';
     position: absolute;
     inset: -8px;
     border-radius: 16px;
-    border: 1px solid var(--balancing-color);
+    border: 1px solid #ff6b6b;
+    opacity: 0.3;
+    animation: balance-ring-pulse 2s ease-in-out infinite 0.5s;
+  }
+
+  .cell.balancing-charging {
+    border-color: #51cf66;
+    animation: cell-balance-pulse 2s ease-in-out infinite;
+    box-shadow: 0 0 15px #51cf66;
+    position: relative;
+  }
+
+  .cell.balancing-charging::before {
+    content: '';
+    position: absolute;
+    inset: -4px;
+    border-radius: 14px;
+    border: 2px solid #51cf66;
+    opacity: 0.5;
+    animation: balance-ring-pulse 2s ease-in-out infinite;
+  }
+
+  .cell.balancing-charging::after {
+    content: '';
+    position: absolute;
+    inset: -8px;
+    border-radius: 16px;
+    border: 1px solid #51cf66;
     opacity: 0.3;
     animation: balance-ring-pulse 2s ease-in-out infinite 0.5s;
   }
@@ -297,6 +432,16 @@ export const styles = css`
     background: var(--balancing-color);
     animation: balancing-blink 1s ease-in-out infinite;
     box-shadow: 0 0 8px var(--balancing-color);
+  }
+
+  .balancing-discharging .balancing-indicator {
+    background: #ff6b6b;
+    box-shadow: 0 0 8px #ff6b6b;
+  }
+
+  .balancing-charging .balancing-indicator {
+    background: #51cf66;
+    box-shadow: 0 0 8px #51cf66;
   }
 
   @keyframes balancing-blink {
@@ -431,9 +576,14 @@ export const styles = css`
       --mdc-icon-size: 26px;
     }
 
-    .reactor-ring {
+    .reactor-ring-container {
       width: 130px;
       height: 130px;
+    }
+
+    .reactor-ring {
+      width: 100px;
+      height: 100px;
     }
 
     .soc-value {

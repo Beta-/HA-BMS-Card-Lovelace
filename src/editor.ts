@@ -191,6 +191,45 @@ export class JkBmsReactorCardEditor extends LitElement {
         </div>
 
         <div class="option">
+          <label>Balancing Current Entity (Optional)</label>
+          <ha-entity-picker
+            .hass=${this.hass}
+            .value=${this._config.balancing_current || ''}
+            .configValue=${'balancing_current'}
+            @value-changed=${this._valueChanged}
+            .includeDomains=${['sensor', 'input_number', 'number']}
+            allow-custom-entity
+          ></ha-entity-picker>
+          <div class="description">Entity for balancing current (displayed in reactor ring)</div>
+        </div>
+
+        <div class="option">
+          <label>Charging Switch (Optional)</label>
+          <ha-entity-picker
+            .hass=${this.hass}
+            .value=${this._config.charging_switch || ''}
+            .configValue=${'charging_switch'}
+            @value-changed=${this._valueChanged}
+            .includeDomains=${['switch', 'input_boolean']}
+            allow-custom-entity
+          ></ha-entity-picker>
+          <div class="description">Switch entity to control charging (clickable charge icon)</div>
+        </div>
+
+        <div class="option">
+          <label>Discharging Switch (Optional)</label>
+          <ha-entity-picker
+            .hass=${this.hass}
+            .value=${this._config.discharging_switch || ''}
+            .configValue=${'discharging_switch'}
+            @value-changed=${this._valueChanged}
+            .includeDomains=${['switch', 'input_boolean']}
+            allow-custom-entity
+          ></ha-entity-picker>
+          <div class="description">Switch entity to control discharging (clickable discharge icon)</div>
+        </div>
+
+        <div class="option">
           <label>Delta Voltage Entity (Optional)</label>
           <ha-entity-picker
             .hass=${this.hass}
@@ -263,6 +302,17 @@ export class JkBmsReactorCardEditor extends LitElement {
             <span slot="label">Show Cell Labels</span>
           </ha-switch>
           <div class="description">Display cell numbers on each cell</div>
+        </div>
+
+        <div class="option">
+          <ha-switch
+            .checked=${this._config.compact_cells ?? false}
+            .configValue=${'compact_cells'}
+            @change=${this._toggleChanged}
+          >
+            <span slot="label">Compact Cells</span>
+          </ha-switch>
+          <div class="description">Use smaller cell display to save space</div>
         </div>
       </div>
     `;

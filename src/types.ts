@@ -6,6 +6,7 @@ export interface HomeAssistant {
     states: {
         [entity_id: string]: HassEntity | undefined;
     };
+    callService: (domain: string, service: string, serviceData?: any) => Promise<void>;
     // Add other HA properties as needed
 }
 
@@ -29,12 +30,16 @@ export interface JkBmsReactorCardConfig {
     cells_prefix?: string;
     cells_count?: number;
     balancing?: string;
+    balancing_current?: string;
     delta?: string;
+    charging_switch?: string;
+    discharging_switch?: string;
     balance_threshold_v?: number;
     charge_threshold_a?: number;
     discharge_threshold_a?: number;
     show_overlay?: boolean;
     show_cell_labels?: boolean;
+    compact_cells?: boolean;
 }
 
 /**
@@ -44,6 +49,7 @@ export interface CellData {
     index: number;
     voltage: number;
     isBalancing: boolean;
+    balanceDirection?: 'charging' | 'discharging' | null;
 }
 
 /**
@@ -67,6 +73,7 @@ export interface PackState {
     minCell: number | null;
     maxCell: number | null;
     isBalancing: boolean;
+    balanceCurrent: number | null;
     isCharging: boolean;
     isDischarging: boolean;
 }

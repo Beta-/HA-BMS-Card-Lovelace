@@ -286,7 +286,7 @@ y$1.elementStyles = [], y$1.shadowRootOptions = { mode: "open" }, y$1[d$1("eleme
  * SPDX-License-Identifier: BSD-3-Clause
  */
 const t = globalThis, i$1 = (t2) => t2, s$1 = t.trustedTypes, e = s$1 ? s$1.createPolicy("lit-html", { createHTML: (t2) => t2 }) : void 0, h = "$lit$", o$2 = `lit$${Math.random().toFixed(9).slice(2)}$`, n$1 = "?" + o$2, r$2 = `<${n$1}>`, l = document, c = () => l.createComment(""), a = (t2) => null === t2 || "object" != typeof t2 && "function" != typeof t2, u = Array.isArray, d = (t2) => u(t2) || "function" == typeof (t2 == null ? void 0 : t2[Symbol.iterator]), f = "[ 	\n\f\r]", v = /<(?:(!--|\/[^a-zA-Z])|(\/?[a-zA-Z][^>\s]*)|(\/?$))/g, _ = /-->/g, m = />/g, p = RegExp(`>|${f}(?:([^\\s"'>=/]+)(${f}*=${f}*(?:[^ 	
-\f\r"'\`<>=]|("|')|))|$)`, "g"), g = /'/g, $ = /"/g, y2 = /^(?:script|style|textarea|title)$/i, x = (t2) => (i2, ...s2) => ({ _$litType$: t2, strings: i2, values: s2 }), b = x(1), E = Symbol.for("lit-noChange"), A = Symbol.for("lit-nothing"), C = /* @__PURE__ */ new WeakMap(), P = l.createTreeWalker(l, 129);
+\f\r"'\`<>=]|("|')|))|$)`, "g"), g = /'/g, $ = /"/g, y2 = /^(?:script|style|textarea|title)$/i, x = (t2) => (i2, ...s2) => ({ _$litType$: t2, strings: i2, values: s2 }), b = x(1), w = x(2), E = Symbol.for("lit-noChange"), A = Symbol.for("lit-nothing"), C = /* @__PURE__ */ new WeakMap(), P = l.createTreeWalker(l, 129);
 function V(t2, i2) {
   if (!u(t2) || !t2.hasOwnProperty("raw")) throw Error("invalid template strings array");
   return void 0 !== e ? e.createHTML(i2) : i2;
@@ -624,26 +624,31 @@ function getCellVoltages(hass, config) {
   const entityIds = getCellEntityIds(config);
   return entityIds.map((id) => getNumericValue(hass, id) ?? 0);
 }
-function getBalancingCells(hass, config, cellVoltages, current, delta) {
+function getBalancingCells(hass, config, cellVoltages, current, delta, balanceCurrent) {
   const balancingEntity = config.balancing;
-  if (balancingEntity) {
-    const isBalancing = isEntityOn(hass, balancingEntity);
-    if (!isBalancing) {
-      return cellVoltages.map(() => false);
-    }
+  if (balancingEntity && !isEntityOn(hass, balancingEntity)) {
+    return cellVoltages.map(() => ({ isBalancing: false, direction: null }));
   }
+  if (!balanceCurrent || Math.abs(balanceCurrent) < 0.01) {
+    return cellVoltages.map(() => ({ isBalancing: false, direction: null }));
+  }
+  const minVoltage = Math.min(...cellVoltages);
   const maxVoltage = Math.max(...cellVoltages);
-  const threshold = config.balance_threshold_v ?? 0.01;
-  const chargeThreshold = config.charge_threshold_a ?? 0.5;
-  const isCharging = current !== null && current > chargeThreshold;
-  const hasSignificantDelta = delta !== null && delta > 0.02;
-  const hasHighCell = maxVoltage > 3.35;
-  if (config.balancing && isEntityOn(hass, config.balancing)) {
-    return cellVoltages.map((v2) => Math.abs(v2 - maxVoltage) <= threshold);
-  } else if (isCharging && (hasSignificantDelta || hasHighCell)) {
-    return cellVoltages.map((v2) => Math.abs(v2 - maxVoltage) <= threshold);
+  const voltageDelta = maxVoltage - minVoltage;
+  if (voltageDelta < 0.01) {
+    return cellVoltages.map(() => ({ isBalancing: false, direction: null }));
   }
-  return cellVoltages.map(() => false);
+  return cellVoltages.map((voltage) => {
+    const voltageDeviation = voltage - minVoltage;
+    const isHigh = voltageDeviation > voltageDelta * 0.7;
+    const isLow = voltageDeviation < voltageDelta * 0.3;
+    if (balanceCurrent > 0 && isHigh) {
+      return { isBalancing: true, direction: "discharging" };
+    } else if (balanceCurrent < 0 && isLow) {
+      return { isBalancing: true, direction: "charging" };
+    }
+    return { isBalancing: false, direction: null };
+  });
 }
 function computePackState(hass, config) {
   const voltage = getNumericValue(hass, config.pack_voltage);
@@ -663,12 +668,14 @@ function computePackState(hass, config) {
   }
   const minCell = cellVoltages.length > 0 ? Math.min(...cellVoltages.filter((v2) => v2 > 0)) : null;
   const maxCell = cellVoltages.length > 0 ? Math.max(...cellVoltages) : null;
-  const balancingFlags = getBalancingCells(hass, config, cellVoltages, current, delta);
-  const isBalancing = balancingFlags.some((b2) => b2);
+  const balanceCurrent = config.balancing_current ? getNumericValue(hass, config.balancing_current) : null;
+  const balancingData = getBalancingCells(hass, config, cellVoltages, current, delta, balanceCurrent);
+  const isBalancing = balancingData.some((b2) => b2.isBalancing);
   const cells = cellVoltages.map((voltage2, index) => ({
     index,
     voltage: voltage2,
-    isBalancing: balancingFlags[index]
+    isBalancing: balancingData[index].isBalancing,
+    balanceDirection: balancingData[index].direction
   }));
   const chargeThreshold = config.charge_threshold_a ?? 0.5;
   const dischargeThreshold = config.discharge_threshold_a ?? 0.5;
@@ -683,6 +690,7 @@ function computePackState(hass, config) {
     minCell,
     maxCell,
     isBalancing,
+    balanceCurrent,
     isCharging,
     isDischarging
   };
@@ -746,6 +754,15 @@ const styles = i$3`
     transition: all 0.3s ease;
   }
 
+  .icon-circle.clickable {
+    cursor: pointer;
+  }
+
+  .icon-circle.clickable:hover {
+    transform: scale(1.1);
+    border-color: var(--accent-color);
+  }
+
   .icon-circle ha-icon {
     --mdc-icon-size: 32px;
     color: #666;
@@ -780,6 +797,48 @@ const styles = i$3`
     font-size: 0.85em;
   }
 
+  .node-current {
+    font-size: 0.9em;
+    font-weight: bold;
+    color: var(--accent-color);
+    margin-top: 2px;
+  }
+
+  /* Reactor Ring Container with Progress */
+  .reactor-ring-container {
+    position: relative;
+    width: 160px;
+    height: 160px;
+    margin: 0 auto;
+  }
+
+  .soc-progress {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    transform: rotate(-90deg);
+  }
+
+  .soc-bg {
+    fill: none;
+    stroke: var(--panel-bg);
+    stroke-width: 8;
+  }
+
+  .soc-fill {
+    fill: none;
+    stroke: var(--accent-color);
+    stroke-width: 8;
+    stroke-linecap: round;
+    transition: stroke-dashoffset 0.5s ease, stroke 0.3s ease;
+  }
+
+  .soc-fill.balancing-active {
+    stroke: var(--balancing-color);
+  }
+
   .status-on {
     color: var(--accent-color);
     font-weight: bold;
@@ -791,37 +850,19 @@ const styles = i$3`
 
   /* Reactor Ring - Central SOC Display */
   .reactor-ring {
-    width: 160px;
-    height: 160px;
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 130px;
+    height: 130px;
     border-radius: 50%;
-    border: 6px solid var(--accent-color);
-    box-shadow: 0 0 20px var(--accent-color-dim);
     display: flex;
     flex-direction: column;
     align-items: center;
     justify-content: center;
     background: var(--card-background-color);
-    margin: 0 auto;
-    position: relative;
-    z-index: 2;
     transition: all 0.3s ease;
-  }
-
-  .reactor-ring.balancing-active {
-    border-color: var(--balancing-color);
-    box-shadow: 0 0 30px var(--balancing-color);
-    animation: reactor-pulse 2s ease-in-out infinite;
-  }
-
-  @keyframes reactor-pulse {
-    0%, 100% {
-      transform: scale(1);
-      box-shadow: 0 0 20px var(--balancing-color);
-    }
-    50% {
-      transform: scale(1.05);
-      box-shadow: 0 0 40px var(--balancing-color);
-    }
   }
 
   .soc-label {
@@ -854,35 +895,22 @@ const styles = i$3`
     z-index: 1;
   }
 
-  .flow-path {
-    fill: none;
-    stroke-width: 2;
-    stroke-dasharray: 8;
+  .flow-line {
+    stroke-width: 3;
     transition: stroke 0.3s ease;
   }
 
-  .path-active-charge {
+  .flow-line.active-charge {
     stroke: var(--solar-color);
-    animation: flow-dash 1s linear infinite;
   }
 
-  .path-active-discharge {
+  .flow-line.active-discharge {
     stroke: var(--discharge-color);
-    animation: flow-dash 1s linear infinite;
   }
 
-  .path-inactive {
+  .flow-line.inactive {
     stroke: #444;
-    stroke-dasharray: 0;
-  }
-
-  @keyframes flow-dash {
-    from {
-      stroke-dashoffset: 16;
-    }
-    to {
-      stroke-dashoffset: 0;
-    }
+    opacity: 0.3;
   }
 
   /* Stats Grid */
@@ -899,18 +927,94 @@ const styles = i$3`
     border-radius: 10px;
     padding: 12px 8px;
     text-align: center;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .stat-sparkline {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: linear-gradient(135deg, 
+      rgba(65, 205, 82, 0.05) 0%, 
+      rgba(65, 205, 82, 0.15) 50%,
+      rgba(65, 205, 82, 0.05) 100%);
+    opacity: 0.5;
+    z-index: 0;
   }
 
   .stat-label {
     font-size: 0.85em;
     color: var(--secondary-text-color);
     margin-bottom: 4px;
+    position: relative;
+    z-index: 1;
   }
 
   .stat-value {
     font-size: 1.3em;
     font-weight: bold;
     color: var(--primary-text-color);
+    position: relative;
+    z-index: 1;
+  }
+
+  .delta-minmax-panel {
+    padding: 8px;
+  }
+
+  .delta-minmax-container {
+    position: relative;
+    z-index: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+  }
+
+  .delta-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 0.95em;
+  }
+
+  .delta-label {
+    font-size: 0.85em;
+    color: var(--secondary-text-color);
+    font-weight: bold;
+  }
+
+  .delta-value {
+    font-weight: bold;
+    color: var(--primary-text-color);
+  }
+
+  .delta-separator {
+    color: var(--secondary-text-color);
+    opacity: 0.5;
+  }
+
+  .max-value {
+    font-weight: bold;
+    color: #51cf66;
+    font-size: 1em;
+  }
+
+  .min-row {
+    display: flex;
+    justify-content: center;
+    padding-top: 2px;
+    border-top: 1px solid var(--divider-color);
+    width: 100%;
+  }
+
+  .min-value {
+    font-weight: bold;
+    color: #ff6b6b;
+    font-size: 1em;
   }
 
   /* Reactor Grid - Cell Display */
@@ -924,6 +1028,18 @@ const styles = i$3`
     grid-template-columns: repeat(4, 1fr);
     gap: 8px;
     position: relative;
+  }
+
+  .reactor-grid.compact {
+    gap: 6px;
+  }
+
+  .reactor-grid.compact .cell {
+    padding: 6px;
+  }
+
+  .reactor-grid.compact .cell-voltage {
+    font-size: 13px;
   }
 
   .cell {
@@ -940,29 +1056,56 @@ const styles = i$3`
     overflow: hidden;
   }
 
-  .cell.balancing {
-    border-color: var(--balancing-color);
+  .cell.balancing-discharging {
+    border-color: #ff6b6b;
     animation: cell-balance-pulse 2s ease-in-out infinite;
-    box-shadow: 0 0 15px var(--balancing-color);
+    box-shadow: 0 0 15px #ff6b6b;
     position: relative;
   }
 
-  .cell.balancing::before {
+  .cell.balancing-discharging::before {
     content: '';
     position: absolute;
     inset: -4px;
     border-radius: 14px;
-    border: 2px solid var(--balancing-color);
+    border: 2px solid #ff6b6b;
     opacity: 0.5;
     animation: balance-ring-pulse 2s ease-in-out infinite;
   }
 
-  .cell.balancing::after {
+  .cell.balancing-discharging::after {
     content: '';
     position: absolute;
     inset: -8px;
     border-radius: 16px;
-    border: 1px solid var(--balancing-color);
+    border: 1px solid #ff6b6b;
+    opacity: 0.3;
+    animation: balance-ring-pulse 2s ease-in-out infinite 0.5s;
+  }
+
+  .cell.balancing-charging {
+    border-color: #51cf66;
+    animation: cell-balance-pulse 2s ease-in-out infinite;
+    box-shadow: 0 0 15px #51cf66;
+    position: relative;
+  }
+
+  .cell.balancing-charging::before {
+    content: '';
+    position: absolute;
+    inset: -4px;
+    border-radius: 14px;
+    border: 2px solid #51cf66;
+    opacity: 0.5;
+    animation: balance-ring-pulse 2s ease-in-out infinite;
+  }
+
+  .cell.balancing-charging::after {
+    content: '';
+    position: absolute;
+    inset: -8px;
+    border-radius: 16px;
+    border: 1px solid #51cf66;
     opacity: 0.3;
     animation: balance-ring-pulse 2s ease-in-out infinite 0.5s;
   }
@@ -988,6 +1131,16 @@ const styles = i$3`
     background: var(--balancing-color);
     animation: balancing-blink 1s ease-in-out infinite;
     box-shadow: 0 0 8px var(--balancing-color);
+  }
+
+  .balancing-discharging .balancing-indicator {
+    background: #ff6b6b;
+    box-shadow: 0 0 8px #ff6b6b;
+  }
+
+  .balancing-charging .balancing-indicator {
+    background: #51cf66;
+    box-shadow: 0 0 8px #51cf66;
   }
 
   @keyframes balancing-blink {
@@ -1122,9 +1275,14 @@ const styles = i$3`
       --mdc-icon-size: 26px;
     }
 
-    .reactor-ring {
+    .reactor-ring-container {
       width: 130px;
       height: 130px;
+    }
+
+    .reactor-ring {
+      width: 100px;
+      height: 100px;
     }
 
     .soc-value {
@@ -1167,6 +1325,7 @@ class JkBmsReactorCard extends i {
       cells_count: config.cells_count ?? 16,
       show_overlay: config.show_overlay ?? true,
       show_cell_labels: config.show_cell_labels ?? true,
+      compact_cells: config.compact_cells ?? false,
       balance_threshold_v: config.balance_threshold_v ?? 0.01,
       charge_threshold_a: config.charge_threshold_a ?? 0.5,
       discharge_threshold_a: config.discharge_threshold_a ?? 0.5
@@ -1229,18 +1388,38 @@ class JkBmsReactorCard extends i {
             </ha-card>
         `;
   }
+  _handleChargeClick() {
+    if (this._config.charging_switch && this.hass) {
+      this.hass.callService("switch", "toggle", {
+        entity_id: this._config.charging_switch
+      });
+    }
+  }
+  _handleDischargeClick() {
+    if (this._config.discharging_switch && this.hass) {
+      this.hass.callService("switch", "toggle", {
+        entity_id: this._config.discharging_switch
+      });
+    }
+  }
   _renderPackInfo(packState) {
     const current = packState.current ?? 0;
     const voltage = packState.voltage ?? 0;
+    const soc = packState.soc ?? 0;
     const isChargingFlow = packState.isCharging && current > 0;
     const isDischargingFlow = packState.isDischarging && current < 0;
     const power = Math.abs(voltage * current);
+    const chargeCurrent = isChargingFlow ? Math.abs(current) : 0;
+    const dischargeCurrent = isDischargingFlow ? Math.abs(current) : 0;
+    const circumference = 283;
+    const progress = circumference - soc / 100 * circumference;
     return b`
       <div class="flow-section">
-        <!-- Solar/Grid/Charger Node -->
+        <!-- Charger Node -->
         <div class="flow-node">
-          <div class="icon-circle ${isChargingFlow ? "active-charge" : ""}">
-            <ha-icon icon="mdi:solar-power"></ha-icon>
+          <div class="icon-circle ${isChargingFlow ? "active-charge" : ""} clickable"
+               @click=${() => this._handleChargeClick()}>
+            <ha-icon icon="mdi:power-plug-outline"></ha-icon>
           </div>
           <div class="node-label">Charge</div>
           <div class="node-status">
@@ -1248,21 +1427,33 @@ class JkBmsReactorCard extends i {
               ${packState.isCharging ? "ON" : "OFF"}
             </span>
           </div>
+          ${chargeCurrent > 0 ? b`
+            <div class="node-current">${formatNumber(chargeCurrent, 1)} A</div>
+          ` : ""}
         </div>
 
-        <!-- Reactor Ring (SOC Display) -->
-        <div class="reactor-ring ${packState.isBalancing ? "balancing-active" : ""}">
-          <div class="soc-label">SoC</div>
-          <div class="soc-value">${formatNumber(packState.soc, 0)}%</div>
-          <div class="capacity-text">
-            ${packState.isBalancing ? "Balancing" : `${formatNumber(packState.voltage, 1)}V`}
+        <!-- Reactor Ring (SOC Progress) -->
+        <div class="reactor-ring-container">
+          <svg class="soc-progress" viewBox="0 0 100 100">
+            <circle class="soc-bg" cx="50" cy="50" r="45"></circle>
+            <circle class="soc-fill ${packState.isBalancing ? "balancing-active" : ""}" 
+                    cx="50" cy="50" r="45"
+                    style="stroke-dasharray: ${circumference}; stroke-dashoffset: ${progress};"></circle>
+          </svg>
+          <div class="reactor-ring ${packState.isBalancing ? "balancing-active" : ""}">
+            <div class="soc-label">SoC</div>
+            <div class="soc-value">${formatNumber(soc, 0)}%</div>
+            <div class="capacity-text">
+              ${packState.isBalancing && packState.balanceCurrent !== null ? b`${formatNumber(packState.balanceCurrent, 2)} A` : b`${formatNumber(voltage, 1)}V`}
+            </div>
           </div>
         </div>
 
         <!-- Load/Discharge Node -->
         <div class="flow-node">
-          <div class="icon-circle ${isDischargingFlow ? "active-discharge" : ""}">
-            <ha-icon icon="mdi:power-plug"></ha-icon>
+          <div class="icon-circle ${isDischargingFlow ? "active-discharge" : ""} clickable"
+               @click=${() => this._handleDischargeClick()}>
+            <ha-icon icon="mdi:power-socket"></ha-icon>
           </div>
           <div class="node-label">Load</div>
           <div class="node-status">
@@ -1270,53 +1461,85 @@ class JkBmsReactorCard extends i {
               ${packState.isDischarging ? "ON" : "OFF"}
             </span>
           </div>
+          ${dischargeCurrent > 0 ? b`
+            <div class="node-current">${formatNumber(dischargeCurrent, 1)} A</div>
+          ` : ""}
         </div>
 
-        <!-- SVG Flow Lines -->
+        <!-- SVG Flow Lines with animated dots -->
         <svg class="flow-svg" viewBox="0 0 400 180" preserveAspectRatio="meet">
-          <!-- Charge path (left to center) -->
-          <path d="M 60,70 Q 120,70 125,90" 
-                class="flow-path ${isChargingFlow ? "path-active-charge" : "path-inactive"}" />
-          <!-- Discharge path (center to right) -->
-          <path d="M 275,90 Q 280,70 340,70" 
-                class="flow-path ${isDischargingFlow ? "path-active-discharge" : "path-inactive"}" />
+          <!-- Charge line (left to center) -->
+          <line x1="80" y1="90" x2="150" y2="90" 
+                class="flow-line ${isChargingFlow ? "active-charge" : "inactive"}" />
+          ${isChargingFlow ? w`
+            <circle class="flow-dot dot-1" r="3" fill="var(--solar-color)">
+              <animateMotion dur="2s" repeatCount="indefinite" path="M 80,90 L 150,90" />
+            </circle>
+            <circle class="flow-dot dot-2" r="3" fill="var(--solar-color)">
+              <animateMotion dur="2s" repeatCount="indefinite" begin="0.5s" path="M 80,90 L 150,90" />
+            </circle>
+            <circle class="flow-dot dot-3" r="3" fill="var(--solar-color)">
+              <animateMotion dur="2s" repeatCount="indefinite" begin="1s" path="M 80,90 L 150,90" />
+            </circle>
+          ` : ""}
+          
+          <!-- Discharge line (center to right) -->
+          <line x1="250" y1="90" x2="320" y2="90" 
+                class="flow-line ${isDischargingFlow ? "active-discharge" : "inactive"}" />
+          ${isDischargingFlow ? w`
+            <circle class="flow-dot dot-1" r="3" fill="var(--discharge-color)">
+              <animateMotion dur="2s" repeatCount="indefinite" path="M 250,90 L 320,90" />
+            </circle>
+            <circle class="flow-dot dot-2" r="3" fill="var(--discharge-color)">
+              <animateMotion dur="2s" repeatCount="indefinite" begin="0.5s" path="M 250,90 L 320,90" />
+            </circle>
+            <circle class="flow-dot dot-3" r="3" fill="var(--discharge-color)">
+              <animateMotion dur="2s" repeatCount="indefinite" begin="1s" path="M 250,90 L 320,90" />
+            </circle>
+          ` : ""}
         </svg>
       </div>
 
-      <!-- Stats Panels -->
+      <!-- Stats Panels with sparklines -->
       <div class="stats-grid">
         <div class="stat-panel">
+          <div class="stat-sparkline"></div>
           <div class="stat-label">Voltage</div>
           <div class="stat-value">${formatNumber(packState.voltage, 2)} V</div>
         </div>
         <div class="stat-panel">
+          <div class="stat-sparkline"></div>
           <div class="stat-label">Current</div>
           <div class="stat-value">${formatNumber(packState.current, 2)} A</div>
         </div>
         <div class="stat-panel">
+          <div class="stat-sparkline"></div>
           <div class="stat-label">Power</div>
           <div class="stat-value">${formatNumber(power, 1)} W</div>
         </div>
-        <div class="stat-panel">
-          <div class="stat-label">Delta</div>
-          <div class="stat-value">${formatNumber(packState.delta, 3)} V</div>
-        </div>
-        <div class="stat-panel">
-          <div class="stat-label">Min Cell</div>
-          <div class="stat-value">${formatNumber(packState.minCell, 3)} V</div>
-        </div>
-        <div class="stat-panel">
-          <div class="stat-label">Max Cell</div>
-          <div class="stat-value">${formatNumber(packState.maxCell, 3)} V</div>
+        <div class="stat-panel delta-minmax-panel">
+          <div class="stat-sparkline"></div>
+          <div class="delta-minmax-container">
+            <div class="delta-row">
+              <span class="delta-label">Δ</span>
+              <span class="delta-value">${formatNumber(packState.delta, 3)}V</span>
+              <span class="delta-separator">|</span>
+              <span class="max-value">${formatNumber(packState.maxCell, 3)}V</span>
+            </div>
+            <div class="min-row">
+              <span class="min-value">${formatNumber(packState.minCell, 3)}V</span>
+            </div>
+          </div>
         </div>
       </div>
     `;
   }
   _renderReactor(packState) {
     const showLabels = this._config.show_cell_labels !== false;
+    const compact = this._config.compact_cells ?? false;
     return b`
       <div class="reactor-container">
-        <div class="reactor-grid">
+        <div class="reactor-grid ${compact ? "compact" : ""}">
           ${packState.cells.map((cell, index) => {
       const cellClass = this._getCellVoltageClass(
         cell.voltage,
@@ -1324,10 +1547,10 @@ class JkBmsReactorCard extends i {
         packState.maxCell
       );
       return b`
-              <div class="cell ${cellClass} ${cell.isBalancing ? "balancing" : ""}">
-                ${showLabels ? b`<div class="cell-label">Cell ${index + 1}</div>` : ""}
+              <div class="cell ${cellClass} ${cell.isBalancing ? `balancing balancing-${cell.balanceDirection}` : ""}">
+                ${showLabels && !compact ? b`<div class="cell-label">Cell ${index + 1}</div>` : ""}
                 <div class="cell-voltage">
-                  ${formatNumber(cell.voltage, 3)}
+                  ${compact ? formatNumber(cell.voltage, 2) : formatNumber(cell.voltage, 3)}
                   <span class="cell-voltage-unit">V</span>
                 </div>
                 ${cell.isBalancing ? b`<div class="balancing-indicator"></div>` : ""}
@@ -1568,6 +1791,45 @@ class JkBmsReactorCardEditor extends i {
         </div>
 
         <div class="option">
+          <label>Balancing Current Entity (Optional)</label>
+          <ha-entity-picker
+            .hass=${this.hass}
+            .value=${this._config.balancing_current || ""}
+            .configValue=${"balancing_current"}
+            @value-changed=${this._valueChanged}
+            .includeDomains=${["sensor", "input_number", "number"]}
+            allow-custom-entity
+          ></ha-entity-picker>
+          <div class="description">Entity for balancing current (displayed in reactor ring)</div>
+        </div>
+
+        <div class="option">
+          <label>Charging Switch (Optional)</label>
+          <ha-entity-picker
+            .hass=${this.hass}
+            .value=${this._config.charging_switch || ""}
+            .configValue=${"charging_switch"}
+            @value-changed=${this._valueChanged}
+            .includeDomains=${["switch", "input_boolean"]}
+            allow-custom-entity
+          ></ha-entity-picker>
+          <div class="description">Switch entity to control charging (clickable charge icon)</div>
+        </div>
+
+        <div class="option">
+          <label>Discharging Switch (Optional)</label>
+          <ha-entity-picker
+            .hass=${this.hass}
+            .value=${this._config.discharging_switch || ""}
+            .configValue=${"discharging_switch"}
+            @value-changed=${this._valueChanged}
+            .includeDomains=${["switch", "input_boolean"]}
+            allow-custom-entity
+          ></ha-entity-picker>
+          <div class="description">Switch entity to control discharging (clickable discharge icon)</div>
+        </div>
+
+        <div class="option">
           <label>Delta Voltage Entity (Optional)</label>
           <ha-entity-picker
             .hass=${this.hass}
@@ -1640,6 +1902,17 @@ class JkBmsReactorCardEditor extends i {
             <span slot="label">Show Cell Labels</span>
           </ha-switch>
           <div class="description">Display cell numbers on each cell</div>
+        </div>
+
+        <div class="option">
+          <ha-switch
+            .checked=${this._config.compact_cells ?? false}
+            .configValue=${"compact_cells"}
+            @change=${this._toggleChanged}
+          >
+            <span slot="label">Compact Cells</span>
+          </ha-switch>
+          <div class="description">Use smaller cell display to save space</div>
         </div>
       </div>
     `;

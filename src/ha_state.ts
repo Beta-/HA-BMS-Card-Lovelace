@@ -62,46 +62,55 @@ export function getCellVoltages(hass: HomeAssistant, config: JkBmsReactorCardCon
 }
 
 /**
- * Determine which cells are balancing
+ * Determine which cells are balancing and in which direction
+ * Positive balance current = high cells discharging
+ * Negative balance current = low cells charging  
  */
 export function getBalancingCells(
     hass: HomeAssistant,
     config: JkBmsReactorCardConfig,
     cellVoltages: number[],
     current: number | null,
-    delta: number | null
-): boolean[] {
+    delta: number | null,
+    balanceCurrent: number | null
+): Array<{ isBalancing: boolean; direction: 'charging' | 'discharging' | null }> {
     const balancingEntity = config.balancing;
 
-    // If balancing entity exists and is on, try to infer which cells
-    if (balancingEntity) {
-        const isBalancing = isEntityOn(hass, balancingEntity);
-        if (!isBalancing) {
-            return cellVoltages.map(() => false);
-        }
+    // If balancing entity exists and is off, no cells are balancing
+    if (balancingEntity && !isEntityOn(hass, balancingEntity)) {
+        return cellVoltages.map(() => ({ isBalancing: false, direction: null }));
     }
 
-    // Infer balancing cells based on max voltage
+    // Not balancing if no balance current or very small
+    if (!balanceCurrent || Math.abs(balanceCurrent) < 0.01) {
+        return cellVoltages.map(() => ({ isBalancing: false, direction: null }));
+    }
+
+    const minVoltage = Math.min(...cellVoltages);
     const maxVoltage = Math.max(...cellVoltages);
-    const threshold = config.balance_threshold_v ?? 0.01;
+    const voltageDelta = maxVoltage - minVoltage;
 
-    // Only infer balancing if:
-    // 1. We're charging (current > threshold)
-    // 2. Delta is significant OR max cell is high
-    const chargeThreshold = config.charge_threshold_a ?? 0.5;
-    const isCharging = current !== null && current > chargeThreshold;
-    const hasSignificantDelta = delta !== null && delta > 0.02;
-    const hasHighCell = maxVoltage > 3.35;
-
-    if (config.balancing && isEntityOn(hass, config.balancing)) {
-        // Explicit balancing entity is on
-        return cellVoltages.map(v => Math.abs(v - maxVoltage) <= threshold);
-    } else if (isCharging && (hasSignificantDelta || hasHighCell)) {
-        // Infer balancing during charging with conditions
-        return cellVoltages.map(v => Math.abs(v - maxVoltage) <= threshold);
+    // Not balancing if delta is too small
+    if (voltageDelta < 0.01) {
+        return cellVoltages.map(() => ({ isBalancing: false, direction: null }));
     }
 
-    return cellVoltages.map(() => false);
+    // Determine which cells are being balanced based on current direction
+    return cellVoltages.map(voltage => {
+        const voltageDeviation = voltage - minVoltage;
+        const isHigh = voltageDeviation > (voltageDelta * 0.7); // Top 30% voltage range
+        const isLow = voltageDeviation < (voltageDelta * 0.3);  // Bottom 30% voltage range
+
+        if (balanceCurrent > 0 && isHigh) {
+            // Positive current: high cells are discharging
+            return { isBalancing: true, direction: 'discharging' as const };
+        } else if (balanceCurrent < 0 && isLow) {
+            // Negative current: low cells are charging
+            return { isBalancing: true, direction: 'charging' as const };
+        }
+
+        return { isBalancing: false, direction: null };
+    });
 }
 
 /**
@@ -133,13 +142,18 @@ export function computePackState(
     const minCell = cellVoltages.length > 0 ? Math.min(...cellVoltages.filter(v => v > 0)) : null;
     const maxCell = cellVoltages.length > 0 ? Math.max(...cellVoltages) : null;
 
-    const balancingFlags = getBalancingCells(hass, config, cellVoltages, current, delta);
-    const isBalancing = balancingFlags.some(b => b);
+    const balanceCurrent = config.balancing_current
+        ? getNumericValue(hass, config.balancing_current)
+        : null;
+
+    const balancingData = getBalancingCells(hass, config, cellVoltages, current, delta, balanceCurrent);
+    const isBalancing = balancingData.some(b => b.isBalancing);
 
     const cells: CellData[] = cellVoltages.map((voltage, index) => ({
         index,
         voltage,
-        isBalancing: balancingFlags[index],
+        isBalancing: balancingData[index].isBalancing,
+        balanceDirection: balancingData[index].direction,
     }));
 
     const chargeThreshold = config.charge_threshold_a ?? 0.5;
@@ -157,6 +171,7 @@ export function computePackState(
         minCell,
         maxCell,
         isBalancing,
+        balanceCurrent,
         isCharging,
         isDischarging,
     };
