@@ -49,6 +49,21 @@ export class JkBmsReactorCard extends LitElement {
         return 6;
     }
 
+    public static getConfigElement() {
+        return document.createElement('jk-bms-reactor-card-editor');
+    }
+
+    public static getStubConfig() {
+        return {
+            type: 'custom:jk-bms-reactor-card',
+            pack_voltage: '',
+            current: '',
+            soc: '',
+            cells_prefix: 'sensor.jk_bms_cell_',
+            cells_count: 16,
+        };
+    }
+
     private _getCellVoltageClass(voltage: number, minCell: number | null, maxCell: number | null): string {
         if (voltage < 3.0) return 'low-voltage';
         if (voltage > 3.5) return 'high-voltage';

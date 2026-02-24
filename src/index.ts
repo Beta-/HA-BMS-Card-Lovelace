@@ -1,7 +1,9 @@
 import { JkBmsReactorCard } from './card';
+import { JkBmsReactorCardEditor } from './editor';
 
-// Register the custom element
+// Register the custom elements
 customElements.define('jk-bms-reactor-card', JkBmsReactorCard);
+customElements.define('jk-bms-reactor-card-editor', JkBmsReactorCardEditor);
 
 // Expose version for debugging
 console.info(
