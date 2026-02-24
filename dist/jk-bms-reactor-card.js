@@ -1246,16 +1246,35 @@ const styles = i$3`
     stroke-width: 2;
     stroke-linecap: round;
     stroke-linejoin: round;
+    opacity: 0;
   }
 
-  .cell-flow-column.charging .cell-flow-path {
-    stroke: var(--accent-color);
-    filter: drop-shadow(0 0 4px var(--flow-in-glow));
+  .cell-flow-path.active {
+    opacity: 1;
+    stroke-dasharray: 6 8;
   }
 
-  .cell-flow-column.discharging .cell-flow-path {
-    stroke: var(--discharge-color);
-    filter: drop-shadow(0 0 4px var(--flow-out-glow));
+  .cell-flow-column.dir-down .cell-flow-path.active {
+    animation: cell-flow-dash-down 1.1s linear infinite;
+  }
+
+  .cell-flow-column.dir-up .cell-flow-path.active {
+    animation: cell-flow-dash-up 1.1s linear infinite;
+  }
+
+  .cell-flow-dot {
+    opacity: 0.9;
+    filter: drop-shadow(0 0 3px rgba(255, 255, 255, 0.25));
+  }
+
+  @keyframes cell-flow-dash-down {
+    from { stroke-dashoffset: 0; }
+    to { stroke-dashoffset: -28; }
+  }
+
+  @keyframes cell-flow-dash-up {
+    from { stroke-dashoffset: 0; }
+    to { stroke-dashoffset: 28; }
   }
 
   .reactor-grid.compact {
@@ -1569,6 +1588,7 @@ var __decorateClass$1 = (decorators, target, key, kind) => {
 class JkBmsReactorCard extends i {
   constructor() {
     super(...arguments);
+    this._uid = Math.random().toString(36).slice(2, 9);
     this._history = {
       voltage: [],
       current: [],
@@ -2069,7 +2089,20 @@ class JkBmsReactorCard extends i {
     const left = packState.cells.filter((_2, i2) => i2 % 2 === 0);
     const right = packState.cells.filter((_2, i2) => i2 % 2 === 1);
     const rows = Math.max(left.length, right.length);
-    const flowClass = packState.isCharging ? "charging" : packState.isDischarging ? "discharging" : "";
+    const dischargingIndex = packState.cells.findIndex(
+      (c2) => c2.isBalancing && c2.balanceDirection === "discharging"
+    );
+    const chargingIndex = packState.cells.findIndex(
+      (c2) => c2.isBalancing && c2.balanceDirection === "charging"
+    );
+    const showConnector = packState.isBalancing && dischargingIndex >= 0 && chargingIndex >= 0;
+    const startIndex = dischargingIndex;
+    const endIndex = chargingIndex;
+    const startRow = startIndex >= 0 ? Math.floor(startIndex / 2) : 0;
+    const endRow = endIndex >= 0 ? Math.floor(endIndex / 2) : 0;
+    const startSide = startIndex % 2;
+    const endSide = endIndex % 2;
+    const flowDirClass = showConnector ? startRow > endRow ? "dir-up" : "dir-down" : "";
     const cellTemplate = (cell, index) => {
       const cellClass = this._getCellVoltageClass(cell.voltage, packState.minCell, packState.maxCell);
       return b`
@@ -2091,24 +2124,46 @@ class JkBmsReactorCard extends i {
       `;
     };
     const connectorPath = () => {
-      if (rows <= 0) return "";
+      if (!showConnector) return "";
       const step = 10;
       const y3 = (r2) => r2 * step + step / 2;
       const xL = 0;
       const xR = 100;
       const xM = 50;
-      let d2 = `M ${xL} ${y3(0)} L ${xR} ${y3(0)}`;
-      for (let r2 = 0; r2 < rows - 1; r2++) {
-        d2 += ` L ${xM} ${y3(r2)} L ${xM} ${y3(r2 + 1)} L ${xL} ${y3(r2 + 1)} L ${xR} ${y3(r2 + 1)}`;
+      const xStart = startSide === 0 ? xL : xR;
+      const xEnd = endSide === 0 ? xL : xR;
+      const yStart = y3(startRow);
+      const yEnd = y3(endRow);
+      if (startRow === endRow) {
+        return `M ${xStart} ${yStart} L ${xM} ${yStart} L ${xEnd} ${yEnd}`;
       }
-      return d2;
+      return `M ${xStart} ${yStart} L ${xM} ${yStart} L ${xM} ${yEnd} L ${xEnd} ${yEnd}`;
     };
     return b`
       <div class="reactor-container">
         <div class="reactor-grid ${compact ? "compact" : ""}">
-          <div class="cell-flow-column ${flowClass}" style="grid-row: 1 / span ${Math.max(1, rows)};">
+          <div class="cell-flow-column ${showConnector ? "active" : ""} ${flowDirClass}" style="grid-row: 1 / span ${Math.max(1, rows)};">
             <svg class="cell-flow-svg" viewBox="0 0 100 ${Math.max(1, rows) * 10}" preserveAspectRatio="none" aria-hidden="true">
-              <path class="cell-flow-path" d="${connectorPath()}"></path>
+              <defs>
+                <linearGradient id="cellFlowGrad-${this._uid}" x1="0" y1="0" x2="1" y2="0">
+                  <stop offset="0%" stop-color="var(--balance-discharge-color)"></stop>
+                  <stop offset="100%" stop-color="var(--balance-charge-color)"></stop>
+                </linearGradient>
+              </defs>
+              <path
+                id="cellFlowPath-${this._uid}"
+                class="cell-flow-path ${showConnector ? "active" : ""}"
+                d="${connectorPath()}"
+                stroke="url(#cellFlowGrad-${this._uid})"
+              ></path>
+              ${showConnector ? w`
+                <circle class="cell-flow-dot" r="2.6" fill="var(--balance-discharge-color)">
+                  <animateMotion dur="1.8s" repeatCount="indefinite" path="${connectorPath()}" />
+                </circle>
+                <circle class="cell-flow-dot" r="2.6" fill="var(--balance-charge-color)">
+                  <animateMotion dur="1.8s" repeatCount="indefinite" begin="0.6s" path="${connectorPath()}" />
+                </circle>
+              ` : ""}
             </svg>
           </div>
 

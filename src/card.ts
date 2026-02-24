@@ -8,6 +8,8 @@ export class JkBmsReactorCard extends LitElement {
   @property({ attribute: false }) public hass!: HomeAssistant;
   @state() private _config!: JkBmsReactorCardConfig;
 
+  private _uid = Math.random().toString(36).slice(2, 9);
+
   private _history = {
     voltage: [] as number[],
     current: [] as number[],
@@ -606,7 +608,21 @@ export class JkBmsReactorCard extends LitElement {
     const right = packState.cells.filter((_, i) => i % 2 === 1);
     const rows = Math.max(left.length, right.length);
 
-    const flowClass = packState.isCharging ? 'charging' : packState.isDischarging ? 'discharging' : '';
+    const dischargingIndex = packState.cells.findIndex(
+      c => c.isBalancing && c.balanceDirection === 'discharging'
+    );
+    const chargingIndex = packState.cells.findIndex(
+      c => c.isBalancing && c.balanceDirection === 'charging'
+    );
+    const showConnector = packState.isBalancing && dischargingIndex >= 0 && chargingIndex >= 0;
+
+    const startIndex = dischargingIndex;
+    const endIndex = chargingIndex;
+    const startRow = startIndex >= 0 ? Math.floor(startIndex / 2) : 0;
+    const endRow = endIndex >= 0 ? Math.floor(endIndex / 2) : 0;
+    const startSide = startIndex % 2; // 0=left, 1=right
+    const endSide = endIndex % 2;
+    const flowDirClass = showConnector ? (startRow > endRow ? 'dir-up' : 'dir-down') : '';
 
     const cellTemplate = (cell: any, index: number) => {
       const cellClass = this._getCellVoltageClass(cell.voltage, packState.minCell, packState.maxCell);
@@ -630,26 +646,50 @@ export class JkBmsReactorCard extends LitElement {
     };
 
     const connectorPath = () => {
-      if (rows <= 0) return '';
+      if (!showConnector) return '';
       const step = 10;
       const y = (r: number) => r * step + step / 2;
       const xL = 0;
       const xR = 100;
       const xM = 50;
 
-      let d = `M ${xL} ${y(0)} L ${xR} ${y(0)}`;
-      for (let r = 0; r < rows - 1; r++) {
-        d += ` L ${xM} ${y(r)} L ${xM} ${y(r + 1)} L ${xL} ${y(r + 1)} L ${xR} ${y(r + 1)}`;
+      const xStart = startSide === 0 ? xL : xR;
+      const xEnd = endSide === 0 ? xL : xR;
+      const yStart = y(startRow);
+      const yEnd = y(endRow);
+
+      if (startRow === endRow) {
+        return `M ${xStart} ${yStart} L ${xM} ${yStart} L ${xEnd} ${yEnd}`;
       }
-      return d;
+
+      return `M ${xStart} ${yStart} L ${xM} ${yStart} L ${xM} ${yEnd} L ${xEnd} ${yEnd}`;
     };
 
     return html`
       <div class="reactor-container">
         <div class="reactor-grid ${compact ? 'compact' : ''}">
-          <div class="cell-flow-column ${flowClass}" style="grid-row: 1 / span ${Math.max(1, rows)};">
+          <div class="cell-flow-column ${showConnector ? 'active' : ''} ${flowDirClass}" style="grid-row: 1 / span ${Math.max(1, rows)};">
             <svg class="cell-flow-svg" viewBox="0 0 100 ${Math.max(1, rows) * 10}" preserveAspectRatio="none" aria-hidden="true">
-              <path class="cell-flow-path" d="${connectorPath()}"></path>
+              <defs>
+                <linearGradient id="cellFlowGrad-${this._uid}" x1="0" y1="0" x2="1" y2="0">
+                  <stop offset="0%" stop-color="var(--balance-discharge-color)"></stop>
+                  <stop offset="100%" stop-color="var(--balance-charge-color)"></stop>
+                </linearGradient>
+              </defs>
+              <path
+                id="cellFlowPath-${this._uid}"
+                class="cell-flow-path ${showConnector ? 'active' : ''}"
+                d="${connectorPath()}"
+                stroke="url(#cellFlowGrad-${this._uid})"
+              ></path>
+              ${showConnector ? svg`
+                <circle class="cell-flow-dot" r="2.6" fill="var(--balance-discharge-color)">
+                  <animateMotion dur="1.8s" repeatCount="indefinite" path="${connectorPath()}" />
+                </circle>
+                <circle class="cell-flow-dot" r="2.6" fill="var(--balance-charge-color)">
+                  <animateMotion dur="1.8s" repeatCount="indefinite" begin="0.6s" path="${connectorPath()}" />
+                </circle>
+              ` : ''}
             </svg>
           </div>
 

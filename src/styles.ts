@@ -533,16 +533,35 @@ export const styles = css`
     stroke-width: 2;
     stroke-linecap: round;
     stroke-linejoin: round;
+    opacity: 0;
   }
 
-  .cell-flow-column.charging .cell-flow-path {
-    stroke: var(--accent-color);
-    filter: drop-shadow(0 0 4px var(--flow-in-glow));
+  .cell-flow-path.active {
+    opacity: 1;
+    stroke-dasharray: 6 8;
   }
 
-  .cell-flow-column.discharging .cell-flow-path {
-    stroke: var(--discharge-color);
-    filter: drop-shadow(0 0 4px var(--flow-out-glow));
+  .cell-flow-column.dir-down .cell-flow-path.active {
+    animation: cell-flow-dash-down 1.1s linear infinite;
+  }
+
+  .cell-flow-column.dir-up .cell-flow-path.active {
+    animation: cell-flow-dash-up 1.1s linear infinite;
+  }
+
+  .cell-flow-dot {
+    opacity: 0.9;
+    filter: drop-shadow(0 0 3px rgba(255, 255, 255, 0.25));
+  }
+
+  @keyframes cell-flow-dash-down {
+    from { stroke-dashoffset: 0; }
+    to { stroke-dashoffset: -28; }
+  }
+
+  @keyframes cell-flow-dash-up {
+    from { stroke-dashoffset: 0; }
+    to { stroke-dashoffset: 28; }
   }
 
   .reactor-grid.compact {
