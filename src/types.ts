@@ -27,6 +27,10 @@ export interface JkBmsReactorCardConfig {
     pack_voltage: string;
     current: string;
     soc: string;
+
+    // Optional scaling for pack voltage sparkline
+    pack_voltage_min?: number;
+    pack_voltage_max?: number;
     cells?: string[];
     cells_prefix?: string;
     cells_count?: number;
@@ -47,6 +51,10 @@ export interface JkBmsReactorCardConfig {
     // Optional temperatures
     mos_temp?: string;
     temp_sensors?: string[];
+
+    // Optional capacity (Ah)
+    capacity_remaining?: string;
+    capacity_total_ah?: number;
 
     // Optional color overrides (CSS color strings)
     color_accent?: string;
@@ -95,4 +103,6 @@ export interface PackState {
 
     mosTemp?: number | null;
     temps?: Array<{ index: number; temp: number | null }>;
+
+    capacityRemainingAh?: number | null;
 }

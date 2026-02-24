@@ -347,7 +347,15 @@ export const styles = css`
 
   .delta-minmax-panel {
     padding: 10px 8px;
-    grid-column: 1 / -1;
+    grid-column: span 2;
+  }
+
+  .temps-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 8px;
+    margin-top: -8px;
+    margin-bottom: 16px;
   }
 
   .delta-minmax-container {
@@ -497,15 +505,42 @@ export const styles = css`
   }
 
   .reactor-grid.compact {
-    gap: 6px;
+    gap: 4px;
   }
 
   .reactor-grid.compact .cell {
-    padding: 6px;
+    aspect-ratio: auto;
+    min-height: 28px;
+    padding: 6px 8px;
+    border-radius: 10px;
+    flex-direction: row;
+    justify-content: space-between;
   }
 
-  .reactor-grid.compact .cell-voltage {
+  .reactor-grid.compact .cell-compact-row {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 6px;
+    padding-right: 12px;
+  }
+
+  .reactor-grid.compact .cell-index {
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--secondary-text-color);
+  }
+
+  .reactor-grid.compact .cell-compact-voltage {
     font-size: 13px;
+    font-weight: 800;
+    color: var(--primary-text-color);
+  }
+
+  .reactor-grid.compact .balancing-indicator {
+    top: 50%;
+    transform: translateY(-50%);
   }
 
   .cell {
@@ -728,7 +763,7 @@ export const styles = css`
     }
 
     .delta-minmax-panel {
-      grid-column: 1 / -1;
+      grid-column: span 2;
     }
 
     .flow-section {

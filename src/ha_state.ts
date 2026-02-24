@@ -178,6 +178,10 @@ export function computePackState(
         temp: entityId ? getNumericValue(hass, entityId) : null,
     }));
 
+    const capacityRemainingAh = config.capacity_remaining
+        ? getNumericValue(hass, config.capacity_remaining)
+        : null;
+
     return {
         voltage,
         current,
@@ -192,6 +196,7 @@ export function computePackState(
         isDischarging,
         mosTemp,
         temps,
+        capacityRemainingAh,
     };
 }
 

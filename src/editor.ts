@@ -1,4 +1,5 @@
 import { LitElement, html, css } from 'lit';
+import { html as staticHtml, unsafeStatic } from 'lit/static-html.js';
 import { property, state } from 'lit/decorators.js';
 import type { HomeAssistant, JkBmsReactorCardConfig } from './types';
 
@@ -114,7 +115,50 @@ export class JkBmsReactorCardEditor extends LitElement {
       show_overlay: config.show_overlay ?? true,
       show_cell_labels: config.show_cell_labels ?? true,
       cell_columns: config.cell_columns ?? 4,
+
+      pack_voltage_min: config.pack_voltage_min,
+      pack_voltage_max: config.pack_voltage_max,
+      capacity_remaining: config.capacity_remaining ?? '',
+      capacity_total_ah: config.capacity_total_ah,
     };
+  }
+
+  private _entityPickerTag(): string | null {
+    if (customElements.get('ha-entity-picker')) return 'ha-entity-picker';
+    if (customElements.get('hui-entity-picker')) return 'hui-entity-picker';
+    return null;
+  }
+
+  private _renderEntityPicker(options: {
+    value: string;
+    configValue?: string;
+    index?: number;
+    includeDomains?: string[];
+    onChanged: (ev: CustomEvent) => void;
+  }) {
+    const tag = this._entityPickerTag();
+    if (!tag) {
+      return html`
+        <ha-textfield
+          .value=${options.value}
+          .configValue=${options.configValue ?? ''}
+          @input=${options.onChanged as any}
+        ></ha-textfield>
+      `;
+    }
+
+    return staticHtml`
+      <${unsafeStatic(tag)}
+        .hass=${this.hass}
+        .value=${options.value}
+        .configValue=${options.configValue ?? undefined}
+        .index=${options.index ?? undefined}
+        .includeDomains=${options.includeDomains ?? undefined}
+        .allowCustomEntity=${true}
+        allow-custom-entity
+        @value-changed=${options.onChanged}
+      ></${unsafeStatic(tag)}>
+    `;
   }
 
   protected render() {
@@ -141,40 +185,34 @@ export class JkBmsReactorCardEditor extends LitElement {
 
         <div class="option">
           <label>Pack Voltage Entity</label>
-          <ha-entity-picker
-            .hass=${this.hass}
-            .value=${this._config.pack_voltage || ''}
-            .configValue=${'pack_voltage'}
-            @value-changed=${this._valueChanged}
-            .includeDomains=${['sensor', 'input_number', 'number']}
-            allow-custom-entity
-          ></ha-entity-picker>
+          ${this._renderEntityPicker({
+      value: this._config.pack_voltage || '',
+      configValue: 'pack_voltage',
+      includeDomains: ['sensor', 'input_number', 'number'],
+      onChanged: this._valueChanged,
+    })}
           <div class="description">Entity for total pack voltage</div>
         </div>
 
         <div class="option">
           <label>Current Entity</label>
-          <ha-entity-picker
-            .hass=${this.hass}
-            .value=${this._config.current || ''}
-            .configValue=${'current'}
-            @value-changed=${this._valueChanged}
-            .includeDomains=${['sensor', 'input_number', 'number']}
-            allow-custom-entity
-          ></ha-entity-picker>
+          ${this._renderEntityPicker({
+      value: this._config.current || '',
+      configValue: 'current',
+      includeDomains: ['sensor', 'input_number', 'number'],
+      onChanged: this._valueChanged,
+    })}
           <div class="description">Entity for pack current (positive = charging)</div>
         </div>
 
         <div class="option">
           <label>State of Charge (SOC) Entity</label>
-          <ha-entity-picker
-            .hass=${this.hass}
-            .value=${this._config.soc || ''}
-            .configValue=${'soc'}
-            @value-changed=${this._valueChanged}
-            .includeDomains=${['sensor', 'input_number', 'number']}
-            allow-custom-entity
-          ></ha-entity-picker>
+          ${this._renderEntityPicker({
+      value: this._config.soc || '',
+      configValue: 'soc',
+      includeDomains: ['sensor', 'input_number', 'number'],
+      onChanged: this._valueChanged,
+    })}
           <div class="description">Entity for battery state of charge (%)</div>
         </div>
 
@@ -201,79 +239,67 @@ export class JkBmsReactorCardEditor extends LitElement {
 
         <div class="option">
           <label>Balancing Entity (Optional)</label>
-          <ha-entity-picker
-            .hass=${this.hass}
-            .value=${this._config.balancing || ''}
-            .configValue=${'balancing'}
-            @value-changed=${this._valueChanged}
-            .includeDomains=${['binary_sensor', 'sensor', 'input_boolean', 'switch']}
-            allow-custom-entity
-          ></ha-entity-picker>
+          ${this._renderEntityPicker({
+      value: this._config.balancing || '',
+      configValue: 'balancing',
+      includeDomains: ['binary_sensor', 'sensor', 'input_boolean', 'switch'],
+      onChanged: this._valueChanged,
+    })}
           <div class="description">Binary sensor for balancing status</div>
         </div>
 
         <div class="option">
           <label>Balancing Current Entity (Optional)</label>
-          <ha-entity-picker
-            .hass=${this.hass}
-            .value=${this._config.balancing_current || ''}
-            .configValue=${'balancing_current'}
-            @value-changed=${this._valueChanged}
-            .includeDomains=${['sensor', 'input_number', 'number']}
-            allow-custom-entity
-          ></ha-entity-picker>
+          ${this._renderEntityPicker({
+      value: this._config.balancing_current || '',
+      configValue: 'balancing_current',
+      includeDomains: ['sensor', 'input_number', 'number'],
+      onChanged: this._valueChanged,
+    })}
           <div class="description">Entity for balancing current (displayed in reactor ring)</div>
         </div>
 
         <div class="option">
           <label>Charging Switch (Optional)</label>
-          <ha-entity-picker
-            .hass=${this.hass}
-            .value=${this._config.charging_switch || ''}
-            .configValue=${'charging_switch'}
-            @value-changed=${this._valueChanged}
-            .includeDomains=${['switch', 'input_boolean']}
-            allow-custom-entity
-          ></ha-entity-picker>
+          ${this._renderEntityPicker({
+      value: this._config.charging_switch || '',
+      configValue: 'charging_switch',
+      includeDomains: ['switch', 'input_boolean'],
+      onChanged: this._valueChanged,
+    })}
           <div class="description">Switch entity to control charging (clickable charge icon)</div>
         </div>
 
         <div class="option">
           <label>Discharging Switch (Optional)</label>
-          <ha-entity-picker
-            .hass=${this.hass}
-            .value=${this._config.discharging_switch || ''}
-            .configValue=${'discharging_switch'}
-            @value-changed=${this._valueChanged}
-            .includeDomains=${['switch', 'input_boolean']}
-            allow-custom-entity
-          ></ha-entity-picker>
+          ${this._renderEntityPicker({
+      value: this._config.discharging_switch || '',
+      configValue: 'discharging_switch',
+      includeDomains: ['switch', 'input_boolean'],
+      onChanged: this._valueChanged,
+    })}
           <div class="description">Switch entity to control discharging (clickable discharge icon)</div>
         </div>
 
         <div class="option">
           <label>Delta Voltage Entity (Optional)</label>
-          <ha-entity-picker
-            .hass=${this.hass}
-            .value=${this._config.delta || ''}
-            .configValue=${'delta'}
-            @value-changed=${this._valueChanged}
-            .includeDomains=${['sensor', 'input_number', 'number']}
-            allow-custom-entity
-          ></ha-entity-picker>
+          ${this._renderEntityPicker({
+      value: this._config.delta || '',
+      configValue: 'delta',
+      includeDomains: ['sensor', 'input_number', 'number'],
+      onChanged: this._valueChanged,
+    })}
           <div class="description">Entity for cell voltage delta (auto-calculated if not provided)</div>
         </div>
 
         <div class="option">
           <label>MOS Temperature Entity (Optional)</label>
-          <ha-entity-picker
-            .hass=${this.hass}
-            .value=${this._config.mos_temp || ''}
-            .configValue=${'mos_temp'}
-            @value-changed=${this._valueChanged}
-            .includeDomains=${['sensor', 'input_number', 'number']}
-            allow-custom-entity
-          ></ha-entity-picker>
+          ${this._renderEntityPicker({
+      value: this._config.mos_temp || '',
+      configValue: 'mos_temp',
+      includeDomains: ['sensor', 'input_number', 'number'],
+      onChanged: this._valueChanged,
+    })}
           <div class="description">Entity for MOSFET temperature</div>
         </div>
 
@@ -283,20 +309,71 @@ export class JkBmsReactorCardEditor extends LitElement {
             ${(this._config.temp_sensors || []).map((temp, index) => html`
               <div class="cell-input">
                 <span style="min-width: 70px;">Temp ${index + 1}:</span>
-                <ha-entity-picker
-                  .hass=${this.hass}
-                  .value=${temp}
-                  .index=${index}
-                  @value-changed=${this._tempSensorChanged}
-                  .includeDomains=${['sensor', 'input_number', 'number']}
-                  allow-custom-entity
-                ></ha-entity-picker>
+                ${this._renderEntityPicker({
+      value: temp,
+      index,
+      includeDomains: ['sensor', 'input_number', 'number'],
+      onChanged: this._tempSensorChanged,
+    })}
                 <div class="icon-btn" @click=${() => this._removeTempSensor(index)}>
                   <ha-icon icon="mdi:delete"></ha-icon>
                 </div>
               </div>
             `)}
           </div>
+                  <div class="section-title">Graphs</div>
+
+                  <div class="option">
+                    <label>Pack Voltage Min (V)</label>
+                    <ha-textfield
+                      type="number"
+                      step="0.1"
+                      .value=${this._config.pack_voltage_min ?? ''}
+                      .configValue=${'pack_voltage_min'}
+                      @input=${this._valueChanged}
+                      placeholder="e.g. 44.0"
+                    ></ha-textfield>
+                    <div class="description">Optional: clamp voltage sparkline lower bound</div>
+                  </div>
+
+                  <div class="option">
+                    <label>Pack Voltage Max (V)</label>
+                    <ha-textfield
+                      type="number"
+                      step="0.1"
+                      .value=${this._config.pack_voltage_max ?? ''}
+                      .configValue=${'pack_voltage_max'}
+                      @input=${this._valueChanged}
+                      placeholder="e.g. 57.6"
+                    ></ha-textfield>
+                    <div class="description">Optional: clamp voltage sparkline upper bound</div>
+                  </div>
+
+                  <div class="section-title">Capacity (Optional)</div>
+
+                  <div class="option">
+                    <label>Capacity Remaining Entity (Ah)</label>
+                    ${this._renderEntityPicker({
+      value: this._config.capacity_remaining || '',
+      configValue: 'capacity_remaining',
+      includeDomains: ['sensor', 'input_number', 'number'],
+      onChanged: this._valueChanged,
+    })}
+                    <div class="description">If set, shows remaining capacity under SOC</div>
+                  </div>
+
+                  <div class="option">
+                    <label>Total Capacity (Ah)</label>
+                    <ha-textfield
+                      type="number"
+                      step="0.1"
+                      .value=${this._config.capacity_total_ah ?? ''}
+                      .configValue=${'capacity_total_ah'}
+                      @input=${this._valueChanged}
+                      placeholder="e.g. 280"
+                    ></ha-textfield>
+                    <div class="description">Used to compute remaining Ah from SOC when no entity is provided</div>
+                  </div>
           <ha-button class="add-cell-btn" @click=${this._addTempSensor}>
             <ha-icon icon="mdi:plus"></ha-icon>
             Add Temp Sensor
@@ -485,7 +562,7 @@ export class JkBmsReactorCardEditor extends LitElement {
   private _tempSensorChanged(ev: CustomEvent) {
     const target = ev.target as any;
     const index = target.index;
-    const value = ev.detail.value;
+    const value = (ev as any).detail?.value ?? target.value;
 
     const temp_sensors = [...(this._config.temp_sensors || [])];
     temp_sensors[index] = value;
@@ -531,14 +608,12 @@ export class JkBmsReactorCardEditor extends LitElement {
           ${cells.map((cell, index) => html`
             <div class="cell-input">
               <span style="min-width: 60px;">Cell ${index + 1}:</span>
-              <ha-entity-picker
-                .hass=${this.hass}
-                .value=${cell}
-                .index=${index}
-                @value-changed=${this._cellChanged}
-                .includeDomains=${['sensor', 'input_number', 'number']}
-                allow-custom-entity
-              ></ha-entity-picker>
+              ${this._renderEntityPicker({
+      value: cell,
+      index,
+      includeDomains: ['sensor', 'input_number', 'number'],
+      onChanged: this._cellChanged,
+    })}
               <div class="icon-btn" @click=${() => this._removeCell(index)}>
                 <ha-icon icon="mdi:delete"></ha-icon>
               </div>
@@ -595,7 +670,7 @@ export class JkBmsReactorCardEditor extends LitElement {
   private _cellChanged(ev: CustomEvent) {
     const target = ev.target as any;
     const index = target.index;
-    const value = ev.detail.value;
+    const value = (ev as any).detail?.value ?? target.value;
 
     const cells = [...(this._config.cells || [])];
     cells[index] = value;

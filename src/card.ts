@@ -46,6 +46,11 @@ export class JkBmsReactorCard extends LitElement {
       balance_threshold_v: config.balance_threshold_v ?? 0.01,
       charge_threshold_a: config.charge_threshold_a ?? 0.5,
       discharge_threshold_a: config.discharge_threshold_a ?? 0.5,
+
+      pack_voltage_min: config.pack_voltage_min,
+      pack_voltage_max: config.pack_voltage_max,
+      capacity_remaining: config.capacity_remaining,
+      capacity_total_ah: config.capacity_total_ah,
     };
   }
 
@@ -229,7 +234,12 @@ export class JkBmsReactorCard extends LitElement {
     this.requestUpdate();
   }
 
-  private _sparklinePoints(values: number[], width = 100, height = 30): string {
+  private _sparklinePoints(
+    values: number[],
+    width = 100,
+    height = 30,
+    range?: { min?: number; max?: number }
+  ): string {
     if (!values.length) return '';
 
     const smooth = (arr: number[], window = 3) => {
@@ -261,7 +271,14 @@ export class JkBmsReactorCard extends LitElement {
     };
 
     const smoothed = smooth(values, 3);
-    const { min, max } = percentileMinMax(smoothed, 0.1, 0.9);
+    const hasFixedRange =
+      range?.min !== undefined && range?.max !== undefined &&
+      Number.isFinite(range.min) && Number.isFinite(range.max) &&
+      (range.max as number) > (range.min as number);
+
+    const { min, max } = hasFixedRange
+      ? { min: range!.min as number, max: range!.max as number }
+      : percentileMinMax(smoothed, 0.1, 0.9);
     const span = max - min;
 
     const stepX = values.length > 1 ? width / (values.length - 1) : 0;
@@ -364,6 +381,14 @@ export class JkBmsReactorCard extends LitElement {
     const activeSegs = Math.max(0, Math.min(segCount, Math.round((soc / 100) * segCount)));
     const socGlowClass = isChargingFlow ? 'charging' : isDischargingFlow ? 'discharging' : '';
 
+    const capacityLeftAh =
+      (packState.capacityRemainingAh ?? null) ??
+      (this._config.capacity_total_ah !== undefined && this._config.capacity_total_ah !== null && Number.isFinite(this._config.capacity_total_ah)
+        ? (packState.soc !== null && packState.soc !== undefined
+          ? (this._config.capacity_total_ah as number) * ((packState.soc as number) / 100)
+          : null)
+        : null);
+
     return html`
       <div class="flow-section">
         <!-- Charger Node -->
@@ -405,7 +430,9 @@ export class JkBmsReactorCard extends LitElement {
             <div class="capacity-text">
               ${packState.isBalancing && packState.balanceCurrent !== null
         ? html`${formatNumber(packState.balanceCurrent, 2)} A`
-        : html`${formatNumber(voltage, 1)}V`}
+        : capacityLeftAh !== null
+          ? html`${formatNumber(capacityLeftAh, 1)} Ah`
+          : html`${formatNumber(voltage, 1)}V`}
             </div>
           </div>
         </div>
@@ -465,7 +492,10 @@ export class JkBmsReactorCard extends LitElement {
       <div class="stats-grid">
         <div class="stat-panel">
           <svg class="stat-sparkline-svg" viewBox="0 0 100 30" preserveAspectRatio="none" aria-hidden="true">
-            <polyline class="sparkline voltage" points="${this._sparklinePoints(this._history.voltage)}"></polyline>
+            <polyline class="sparkline voltage" points="${this._sparklinePoints(this._history.voltage, 100, 30, {
+            min: this._config.pack_voltage_min,
+            max: this._config.pack_voltage_max,
+          })}"></polyline>
           </svg>
           <div class="stat-label">Voltage</div>
           <div class="stat-value">${formatNumber(packState.voltage, 2)} V</div>
@@ -514,14 +544,18 @@ export class JkBmsReactorCard extends LitElement {
             <div class="stat-value">${formatNumber(packState.mosTemp ?? null, 1)} °C</div>
           </div>
         ` : ''}
-
-        ${(this._config.temp_sensors ?? []).length ? (packState.temps ?? []).map(t => html`
-          <div class="stat-panel">
-            <div class="stat-label">Temp ${t.index + 1}</div>
-            <div class="stat-value">${formatNumber(t.temp ?? null, 1)} °C</div>
-          </div>
-        `) : ''}
       </div>
+
+      ${(this._config.temp_sensors ?? []).length ? html`
+        <div class="temps-grid">
+          ${(packState.temps ?? []).map(t => html`
+            <div class="stat-panel">
+              <div class="stat-label">Temp ${t.index + 1}</div>
+              <div class="stat-value">${formatNumber(t.temp ?? null, 1)} °C</div>
+            </div>
+          `)}
+        </div>
+      ` : ''}
     `;
   }
 
@@ -541,11 +575,18 @@ export class JkBmsReactorCard extends LitElement {
 
       return html`
               <div class="cell ${cellClass} ${cell.isBalancing ? `balancing${cell.balanceDirection ? ` balancing-${cell.balanceDirection}` : ''}` : ''}">
-                ${showLabels && !compact ? html`<div class="cell-label">Cell ${index + 1}</div>` : ''}
-                <div class="cell-voltage">
-                  ${compact ? formatNumber(cell.voltage, 2) : formatNumber(cell.voltage, 3)}
-                  <span class="cell-voltage-unit">V</span>
-                </div>
+                ${compact ? html`
+                  <div class="cell-compact-row">
+                    <span class="cell-index">${index + 1}:</span>
+                    <span class="cell-compact-voltage">${formatNumber(cell.voltage, 3)}V</span>
+                  </div>
+                ` : html`
+                  ${showLabels ? html`<div class="cell-label">Cell ${index + 1}</div>` : ''}
+                  <div class="cell-voltage">
+                    ${formatNumber(cell.voltage, 3)}
+                    <span class="cell-voltage-unit">V</span>
+                  </div>
+                `}
                 ${cell.isBalancing ? html`<div class="balancing-indicator"></div>` : ''}
               </div>
             `;
