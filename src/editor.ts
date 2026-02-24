@@ -412,65 +412,65 @@ export class JkBmsReactorCardEditor extends LitElement {
         <div class="option">
           <label title="Preferred: a persistent counter of total charged energy (kWh). If blank, the card will derive charge/discharge kWh locally by integrating power.">Charge Energy Total (kWh)</label>
           ${this._renderEntityPicker({
-            value: this._config.analytics_charge_energy_total_kwh || '',
-            configValue: 'analytics_charge_energy_total_kwh',
-            includeDomains: ['sensor', 'input_number', 'number'],
-            onChanged: this._valueChanged,
-          })}
+      value: this._config.analytics_charge_energy_total_kwh || '',
+      configValue: 'analytics_charge_energy_total_kwh',
+      includeDomains: ['sensor', 'input_number', 'number'],
+      onChanged: this._valueChanged,
+    })}
           <div class="description">Preferred entity: sensor.main_mainbms_charge_energy_total_kwh</div>
         </div>
 
         <div class="option">
           <label title="Preferred: a persistent counter of total discharged energy (kWh). If blank, the card will derive charge/discharge kWh locally by integrating power.">Discharge Energy Total (kWh)</label>
           ${this._renderEntityPicker({
-            value: this._config.analytics_discharge_energy_total_kwh || '',
-            configValue: 'analytics_discharge_energy_total_kwh',
-            includeDomains: ['sensor', 'input_number', 'number'],
-            onChanged: this._valueChanged,
-          })}
+      value: this._config.analytics_discharge_energy_total_kwh || '',
+      configValue: 'analytics_discharge_energy_total_kwh',
+      includeDomains: ['sensor', 'input_number', 'number'],
+      onChanged: this._valueChanged,
+    })}
           <div class="description">Preferred entity: sensor.main_mainbms_discharge_energy_total_kwh</div>
         </div>
 
         <div class="option">
           <label title="Preferred: a persistent cycle counter. If blank, equivalent cycles are estimated from discharged kWh / nominal pack kWh.">Cycle Count</label>
           ${this._renderEntityPicker({
-            value: this._config.analytics_cycle_count || '',
-            configValue: 'analytics_cycle_count',
-            includeDomains: ['sensor', 'input_number', 'number'],
-            onChanged: this._valueChanged,
-          })}
+      value: this._config.analytics_cycle_count || '',
+      configValue: 'analytics_cycle_count',
+      includeDomains: ['sensor', 'input_number', 'number'],
+      onChanged: this._valueChanged,
+    })}
           <div class="description">Preferred entity: sensor.main_mainbms_cycle_count</div>
         </div>
 
         <div class="option">
           <label title="Optional capacity source (Ah). Used for nominal pack kWh if nominal_capacity_ah is not set, and for SOH if measured_capacity_ah is not set.">Capacity (Ah)</label>
           ${this._renderEntityPicker({
-            value: this._config.analytics_capacity_ah || '',
-            configValue: 'analytics_capacity_ah',
-            includeDomains: ['sensor', 'input_number', 'number'],
-            onChanged: this._valueChanged,
-          })}
+      value: this._config.analytics_capacity_ah || '',
+      configValue: 'analytics_capacity_ah',
+      includeDomains: ['sensor', 'input_number', 'number'],
+      onChanged: this._valueChanged,
+    })}
           <div class="description">Preferred entity: sensor.main_mainbns_capacity_ah</div>
         </div>
 
         <div class="option">
           <label title="Optional measured capacity (Ah). When provided, SOH = measured_capacity_ah / nominal_capacity_ah * 100.">Measured Capacity (Ah)</label>
           ${this._renderEntityPicker({
-            value: this._config.measured_capacity_ah || '',
-            configValue: 'measured_capacity_ah',
-            includeDomains: ['sensor', 'input_number', 'number'],
-            onChanged: this._valueChanged,
-          })}
+      value: this._config.measured_capacity_ah || '',
+      configValue: 'measured_capacity_ah',
+      includeDomains: ['sensor', 'input_number', 'number'],
+      onChanged: this._valueChanged,
+    })}
         </div>
 
         <div class="option">
           <label title="Override SOC used for discharge session tracking (Avg DoD). Defaults to the main SOC entity.">Analytics SOC Entity</label>
           ${this._renderEntityPicker({
-            value: this._config.analytics_soc || '',
-            configValue: 'analytics_soc',
-            includeDomains: ['sensor', 'input_number', 'number'],
-            onChanged: this._valueChanged,
-          })}
+      value: this._config.analytics_soc || '',
+      configValue: 'analytics_soc',
+      includeDomains: ['sensor', 'input_number', 'number'],
+      onChanged: this._valueChanged,
+    })}
         </div>
 
         <div class="option">

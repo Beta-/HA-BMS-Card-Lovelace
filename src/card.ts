@@ -554,7 +554,7 @@ export class JkBmsReactorCard extends LitElement {
     };
 
     pushEntity(this._config.mos_temp, packState.mosTemp ?? null);
-      this._updateAnalytics(packState);
+    this._updateAnalytics(packState);
     for (const entityId of this._config.temp_sensors ?? []) {
       if (!entityId) continue;
       const raw = this.hass.states[entityId]?.state ?? null;
