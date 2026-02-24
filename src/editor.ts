@@ -97,6 +97,29 @@ export class JkBmsReactorCardEditor extends LitElement {
         background: rgba(255, 255, 255, 0.06);
         color: var(--primary-text-color);
       }
+
+      .radio-group {
+        display: flex;
+        gap: 14px;
+        align-items: center;
+        flex-wrap: wrap;
+      }
+
+      .radio {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        cursor: pointer;
+        user-select: none;
+        color: var(--primary-text-color);
+        font-size: 14px;
+      }
+
+      .radio input {
+        width: 16px;
+        height: 16px;
+        accent-color: var(--primary-color);
+      }
     `;
   }
 
@@ -115,6 +138,7 @@ export class JkBmsReactorCardEditor extends LitElement {
       show_overlay: config.show_overlay ?? true,
       show_cell_labels: config.show_cell_labels ?? true,
       cell_columns: config.cell_columns ?? 2,
+      cell_order_mode: config.cell_order_mode ?? 'linear',
 
       pack_voltage_min: config.pack_voltage_min,
       pack_voltage_max: config.pack_voltage_max,
@@ -234,6 +258,35 @@ export class JkBmsReactorCardEditor extends LitElement {
         </div>
 
         ${useCellsArray ? this._renderCellsArray() : this._renderCellsPrefix()}
+
+        <div class="option">
+          <label>Cell Order Mode</label>
+          <div class="radio-group">
+            <label class="radio">
+              <input
+                type="radio"
+                name="cell_order_mode"
+                .checked=${(this._config.cell_order_mode ?? 'linear') === 'linear'}
+                .value=${'linear'}
+                .configValue=${'cell_order_mode'}
+                @change=${this._valueChanged}
+              />
+              Linear (1–2 / 3–4)
+            </label>
+            <label class="radio">
+              <input
+                type="radio"
+                name="cell_order_mode"
+                .checked=${(this._config.cell_order_mode ?? 'linear') === 'bank'}
+                .value=${'bank'}
+                .configValue=${'cell_order_mode'}
+                @change=${this._valueChanged}
+              />
+              Bank (1–9 / 2–10)
+            </label>
+          </div>
+          <div class="description">Controls how cells are arranged in the 2-column grid</div>
+        </div>
 
         <div class="section-title">Optional Settings</div>
 

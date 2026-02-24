@@ -48,6 +48,9 @@ export interface JkBmsReactorCardConfig {
 
     cell_columns?: number;
 
+    // Cell ordering in the 2-column reactor grid
+    cell_order_mode?: 'linear' | 'bank';
+
     // Optional temperatures
     mos_temp?: string;
     temp_sensors?: string[];

@@ -150,6 +150,11 @@ export const styles = css`
     stroke: rgba(255, 255, 255, 0.85);
   }
 
+  .soc-segmented.standby .soc-seg.active {
+    stroke: rgba(255, 255, 255, 0.55);
+    filter: drop-shadow(0 0 2px rgba(255, 255, 255, 0.18));
+  }
+
   .soc-segmented.charging .soc-seg.active {
     stroke: var(--accent-color);
     filter: drop-shadow(0 0 3px var(--flow-in-glow));
@@ -505,7 +510,7 @@ export const styles = css`
     display: grid;
     grid-template-columns: 1fr var(--reactor-mid-gap, 28px) 1fr;
     column-gap: 0;
-    row-gap: 8px;
+    row-gap: 10px;
     position: relative;
   }
 
@@ -539,6 +544,7 @@ export const styles = css`
   .cell-flow-path.active {
     opacity: 1;
     stroke-dasharray: 6 8;
+    stroke-width: 3;
   }
 
   .cell-flow-column.dir-down .cell-flow-path.active {
@@ -565,7 +571,7 @@ export const styles = css`
   }
 
   .reactor-grid.compact {
-    row-gap: 4px;
+    row-gap: 6px;
   }
 
   .reactor-grid.compact .cell {
@@ -822,8 +828,14 @@ export const styles = css`
       grid-template-columns: repeat(2, 1fr);
     }
 
+    .stat-voltage { order: 1; }
+    .stat-current { order: 2; }
+    .stat-power { order: 3; }
+    .stat-mos-temp { order: 4; }
+    .stat-delta { order: 5; }
+
     .delta-minmax-panel {
-      grid-column: span 2;
+      grid-column: 1 / -1;
     }
 
     .flow-section {

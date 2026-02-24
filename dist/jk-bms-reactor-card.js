@@ -863,6 +863,11 @@ const styles = i$3`
     stroke: rgba(255, 255, 255, 0.85);
   }
 
+  .soc-segmented.standby .soc-seg.active {
+    stroke: rgba(255, 255, 255, 0.55);
+    filter: drop-shadow(0 0 2px rgba(255, 255, 255, 0.18));
+  }
+
   .soc-segmented.charging .soc-seg.active {
     stroke: var(--accent-color);
     filter: drop-shadow(0 0 3px var(--flow-in-glow));
@@ -1218,7 +1223,7 @@ const styles = i$3`
     display: grid;
     grid-template-columns: 1fr var(--reactor-mid-gap, 28px) 1fr;
     column-gap: 0;
-    row-gap: 8px;
+    row-gap: 10px;
     position: relative;
   }
 
@@ -1252,6 +1257,7 @@ const styles = i$3`
   .cell-flow-path.active {
     opacity: 1;
     stroke-dasharray: 6 8;
+    stroke-width: 3;
   }
 
   .cell-flow-column.dir-down .cell-flow-path.active {
@@ -1278,7 +1284,7 @@ const styles = i$3`
   }
 
   .reactor-grid.compact {
-    row-gap: 4px;
+    row-gap: 6px;
   }
 
   .reactor-grid.compact .cell {
@@ -1535,8 +1541,14 @@ const styles = i$3`
       grid-template-columns: repeat(2, 1fr);
     }
 
+    .stat-voltage { order: 1; }
+    .stat-current { order: 2; }
+    .stat-power { order: 3; }
+    .stat-mos-temp { order: 4; }
+    .stat-delta { order: 5; }
+
     .delta-minmax-panel {
-      grid-column: span 2;
+      grid-column: 1 / -1;
     }
 
     .flow-section {
@@ -1626,7 +1638,8 @@ class JkBmsReactorCard extends i {
       pack_voltage_min: config.pack_voltage_min,
       pack_voltage_max: config.pack_voltage_max,
       capacity_remaining: config.capacity_remaining,
-      capacity_total_ah: config.capacity_total_ah
+      capacity_total_ah: config.capacity_total_ah,
+      cell_order_mode: config.cell_order_mode ?? "linear"
     };
   }
   _sanitizeCssToken(value) {
@@ -1910,7 +1923,7 @@ class JkBmsReactorCard extends i {
     const dischargeDotSize = isDischargingFlow ? dotRadiusForPower(power) : 3;
     const segCount = 360;
     const activeSegs = Math.max(0, Math.min(segCount, Math.round(soc / 100 * segCount)));
-    const socGlowClass = isChargingFlow ? "charging" : isDischargingFlow ? "discharging" : "";
+    const socGlowClass = isChargingFlow ? "charging" : isDischargingFlow ? "discharging" : "standby";
     const capacityLeftAh = packState.capacityRemainingAh ?? null ?? (this._config.capacity_total_ah !== void 0 && this._config.capacity_total_ah !== null && Number.isFinite(this._config.capacity_total_ah) ? packState.soc !== null && packState.soc !== void 0 ? this._config.capacity_total_ah * (packState.soc / 100) : null : null);
     return b`
       <div class="flow-section">
@@ -1974,34 +1987,34 @@ class JkBmsReactorCard extends i {
         </div>
 
         <!-- SVG Flow Lines with animated dots -->
-        <svg class="flow-svg" viewBox="0 0 400 180" preserveAspectRatio="meet">
+        <svg class="flow-svg" viewBox="0 0 400 180" preserveAspectRatio="none">
           <!-- Charge line (left to center) -->
-          <line x1="80" y1="90" x2="150" y2="90" 
+          <line x1="62.5" y1="90" x2="200" y2="90" 
                 class="flow-line ${isChargingFlow ? "active-charge" : "inactive"}" />
           ${isChargingFlow ? w`
             <circle class="flow-dot dot-1" r="${chargeDotSize}" fill="var(--solar-color)">
-              <animateMotion dur="2s" repeatCount="indefinite" path="M 80,90 L 150,90" />
+              <animateMotion dur="2s" repeatCount="indefinite" path="M 62.5,90 L 200,90" />
             </circle>
             <circle class="flow-dot dot-2" r="${chargeDotSize}" fill="var(--solar-color)">
-              <animateMotion dur="2s" repeatCount="indefinite" begin="0.5s" path="M 80,90 L 150,90" />
+              <animateMotion dur="2s" repeatCount="indefinite" begin="0.5s" path="M 62.5,90 L 200,90" />
             </circle>
             <circle class="flow-dot dot-3" r="${chargeDotSize}" fill="var(--solar-color)">
-              <animateMotion dur="2s" repeatCount="indefinite" begin="1s" path="M 80,90 L 150,90" />
+              <animateMotion dur="2s" repeatCount="indefinite" begin="1s" path="M 62.5,90 L 200,90" />
             </circle>
           ` : ""}
           
           <!-- Discharge line (center to right) -->
-          <line x1="250" y1="90" x2="320" y2="90" 
+          <line x1="200" y1="90" x2="337.5" y2="90" 
                 class="flow-line ${isDischargingFlow ? "active-discharge" : "inactive"}" />
           ${isDischargingFlow ? w`
             <circle class="flow-dot dot-1" r="${dischargeDotSize}" fill="var(--discharge-color)">
-              <animateMotion dur="2s" repeatCount="indefinite" path="M 250,90 L 320,90" />
+              <animateMotion dur="2s" repeatCount="indefinite" path="M 200,90 L 337.5,90" />
             </circle>
             <circle class="flow-dot dot-2" r="${dischargeDotSize}" fill="var(--discharge-color)">
-              <animateMotion dur="2s" repeatCount="indefinite" begin="0.5s" path="M 250,90 L 320,90" />
+              <animateMotion dur="2s" repeatCount="indefinite" begin="0.5s" path="M 200,90 L 337.5,90" />
             </circle>
             <circle class="flow-dot dot-3" r="${dischargeDotSize}" fill="var(--discharge-color)">
-              <animateMotion dur="2s" repeatCount="indefinite" begin="1s" path="M 250,90 L 320,90" />
+              <animateMotion dur="2s" repeatCount="indefinite" begin="1s" path="M 200,90 L 337.5,90" />
             </circle>
           ` : ""}
         </svg>
@@ -2009,7 +2022,7 @@ class JkBmsReactorCard extends i {
 
       <!-- Stats Panels with sparklines -->
       <div class="stats-grid">
-        <div class="stat-panel">
+        <div class="stat-panel stat-voltage">
           <svg class="stat-sparkline-svg" viewBox="0 0 100 30" preserveAspectRatio="none" aria-hidden="true">
             <polyline class="sparkline voltage" points="${this._sparklinePoints(this._history.voltage, 100, 30, {
       min: this._config.pack_voltage_min,
@@ -2019,21 +2032,21 @@ class JkBmsReactorCard extends i {
           <div class="stat-label">Voltage</div>
           <div class="stat-value">${formatNumber(packState.voltage, 2)} V</div>
         </div>
-        <div class="stat-panel ${current > 0.5 ? "flow-in" : current < -0.5 ? "flow-out" : ""}">
+        <div class="stat-panel stat-current ${current > 0.5 ? "flow-in" : current < -0.5 ? "flow-out" : ""}">
           <svg class="stat-sparkline-svg" viewBox="0 0 100 30" preserveAspectRatio="none" aria-hidden="true">
             <polyline class="sparkline current" points="${this._sparklinePoints(this._history.current)}"></polyline>
           </svg>
           <div class="stat-label">Current</div>
           <div class="stat-value">${formatNumber(packState.current, 2)} A</div>
         </div>
-        <div class="stat-panel ${current > 0.5 ? "flow-in" : current < -0.5 ? "flow-out" : ""}">
+        <div class="stat-panel stat-power ${current > 0.5 ? "flow-in" : current < -0.5 ? "flow-out" : ""}">
           <svg class="stat-sparkline-svg" viewBox="0 0 100 30" preserveAspectRatio="none" aria-hidden="true">
             <polyline class="sparkline power" points="${this._sparklinePoints(this._history.power)}"></polyline>
           </svg>
           <div class="stat-label">Power</div>
           <div class="stat-value">${formatNumber(Math.abs((packState.voltage ?? 0) * (packState.current ?? 0)), 1)} W</div>
         </div>
-        <div class="stat-panel delta-minmax-panel">
+        <div class="stat-panel stat-delta delta-minmax-panel">
           <div class="delta-minmax-container">
             <div class="delta-left">
               <svg class="delta-sparkline-svg" viewBox="0 0 100 30" preserveAspectRatio="none" aria-hidden="true">
@@ -2058,7 +2071,7 @@ class JkBmsReactorCard extends i {
         </div>
 
         ${this._config.mos_temp ? b`
-          <div class="stat-panel">
+          <div class="stat-panel stat-mos-temp">
             <svg class="stat-sparkline-svg" viewBox="0 0 100 30" preserveAspectRatio="none" aria-hidden="true">
               <polyline class="sparkline temp" points="${this._sparklinePoints(this._historyByEntity[this._config.mos_temp] ?? [])}"></polyline>
             </svg>
@@ -2086,9 +2099,31 @@ class JkBmsReactorCard extends i {
   _renderReactor(packState) {
     const showLabels = this._config.show_cell_labels !== false;
     const compact = this._config.compact_cells ?? false;
-    const left = packState.cells.filter((_2, i2) => i2 % 2 === 0);
-    const right = packState.cells.filter((_2, i2) => i2 % 2 === 1);
+    const mode = this._config.cell_order_mode ?? "linear";
+    const n3 = packState.cells.length;
+    const half = Math.ceil(n3 / 2);
+    const left = [];
+    const right = [];
+    if (mode === "bank") {
+      for (let i2 = 0; i2 < Math.min(half, n3); i2++) {
+        left.push({ cell: packState.cells[i2], originalIndex: i2 });
+      }
+      for (let i2 = half; i2 < n3; i2++) {
+        right.push({ cell: packState.cells[i2], originalIndex: i2 });
+      }
+    } else {
+      for (let i2 = 0; i2 < n3; i2++) {
+        if (i2 % 2 === 0) left.push({ cell: packState.cells[i2], originalIndex: i2 });
+        else right.push({ cell: packState.cells[i2], originalIndex: i2 });
+      }
+    }
     const rows = Math.max(left.length, right.length);
+    const posForIndex = (idx) => {
+      if (mode === "bank") {
+        return idx < half ? { row: idx, side: 0 } : { row: idx - half, side: 1 };
+      }
+      return { row: Math.floor(idx / 2), side: idx % 2 };
+    };
     const dischargingIndex = packState.cells.findIndex(
       (c2) => c2.isBalancing && c2.balanceDirection === "discharging"
     );
@@ -2098,22 +2133,33 @@ class JkBmsReactorCard extends i {
     const showConnector = packState.isBalancing && dischargingIndex >= 0 && chargingIndex >= 0;
     const startIndex = dischargingIndex;
     const endIndex = chargingIndex;
-    const startRow = startIndex >= 0 ? Math.floor(startIndex / 2) : 0;
-    const endRow = endIndex >= 0 ? Math.floor(endIndex / 2) : 0;
-    const startSide = startIndex % 2;
-    const endSide = endIndex % 2;
+    const startPos = startIndex >= 0 ? posForIndex(startIndex) : { row: 0, side: 0 };
+    const endPos = endIndex >= 0 ? posForIndex(endIndex) : { row: 0, side: 0 };
+    const startRow = startPos.row;
+    const endRow = endPos.row;
+    const startSide = startPos.side;
+    const endSide = endPos.side;
     const flowDirClass = showConnector ? startRow > endRow ? "dir-up" : "dir-down" : "";
-    const cellTemplate = (cell, index) => {
+    const step = 10;
+    const y3 = (r2) => r2 * step + step / 2;
+    const xL = 0;
+    const xR = 100;
+    const xM = 50;
+    const xStart = startSide === 0 ? xL : xR;
+    const xEnd = endSide === 0 ? xL : xR;
+    const yStart = y3(startRow);
+    const yEnd = y3(endRow);
+    const cellTemplate = (cell, originalIndex) => {
       const cellClass = this._getCellVoltageClass(cell.voltage, packState.minCell, packState.maxCell);
       return b`
         <div class="cell ${cellClass} ${cell.isBalancing ? `balancing${cell.balanceDirection ? ` balancing-${cell.balanceDirection}` : ""}` : ""}">
           ${compact ? b`
             <div class="cell-compact-row">
-              <span class="cell-index">${index + 1}:</span>
+              <span class="cell-index">${originalIndex + 1}:</span>
               <span class="cell-compact-voltage">${formatNumber(cell.voltage, 3)}V</span>
             </div>
           ` : b`
-            ${showLabels ? b`<div class="cell-label">Cell ${index + 1}</div>` : ""}
+            ${showLabels ? b`<div class="cell-label">Cell ${originalIndex + 1}</div>` : ""}
             <div class="cell-voltage">
               ${formatNumber(cell.voltage, 3)}
               <span class="cell-voltage-unit">V</span>
@@ -2125,15 +2171,6 @@ class JkBmsReactorCard extends i {
     };
     const connectorPath = () => {
       if (!showConnector) return "";
-      const step = 10;
-      const y3 = (r2) => r2 * step + step / 2;
-      const xL = 0;
-      const xR = 100;
-      const xM = 50;
-      const xStart = startSide === 0 ? xL : xR;
-      const xEnd = endSide === 0 ? xL : xR;
-      const yStart = y3(startRow);
-      const yEnd = y3(endRow);
       if (startRow === endRow) {
         return `M ${xStart} ${yStart} L ${xM} ${yStart} L ${xEnd} ${yEnd}`;
       }
@@ -2145,7 +2182,14 @@ class JkBmsReactorCard extends i {
           <div class="cell-flow-column ${showConnector ? "active" : ""} ${flowDirClass}" style="grid-row: 1 / span ${Math.max(1, rows)};">
             <svg class="cell-flow-svg" viewBox="0 0 100 ${Math.max(1, rows) * 10}" preserveAspectRatio="none" aria-hidden="true">
               <defs>
-                <linearGradient id="cellFlowGrad-${this._uid}" x1="0" y1="0" x2="1" y2="0">
+                <linearGradient
+                  id="cellFlowGrad-${this._uid}"
+                  gradientUnits="userSpaceOnUse"
+                  x1="${xStart}"
+                  y1="${yStart}"
+                  x2="${xEnd}"
+                  y2="${yEnd}"
+                >
                   <stop offset="0%" stop-color="var(--balance-discharge-color)"></stop>
                   <stop offset="100%" stop-color="var(--balance-charge-color)"></stop>
                 </linearGradient>
@@ -2157,11 +2201,8 @@ class JkBmsReactorCard extends i {
                 stroke="url(#cellFlowGrad-${this._uid})"
               ></path>
               ${showConnector ? w`
-                <circle class="cell-flow-dot" r="2.6" fill="var(--balance-discharge-color)">
+                <circle class="cell-flow-dot" r="3.2" fill="url(#cellFlowGrad-${this._uid})">
                   <animateMotion dur="1.8s" repeatCount="indefinite" path="${connectorPath()}" />
-                </circle>
-                <circle class="cell-flow-dot" r="2.6" fill="var(--balance-charge-color)">
-                  <animateMotion dur="1.8s" repeatCount="indefinite" begin="0.6s" path="${connectorPath()}" />
                 </circle>
               ` : ""}
             </svg>
@@ -2170,11 +2211,9 @@ class JkBmsReactorCard extends i {
           ${Array.from({ length: rows }, (_2, r2) => {
       const l2 = left[r2];
       const rc = right[r2];
-      const lIndex = r2 * 2;
-      const rIndex = r2 * 2 + 1;
       return b`
-              ${l2 ? b`<div class="cell-wrap" style="grid-column: 1; grid-row: ${r2 + 1};">${cellTemplate(l2, lIndex)}</div>` : ""}
-              ${rc ? b`<div class="cell-wrap" style="grid-column: 3; grid-row: ${r2 + 1};">${cellTemplate(rc, rIndex)}</div>` : ""}
+              ${l2 ? b`<div class="cell-wrap" style="grid-column: 1; grid-row: ${r2 + 1};">${cellTemplate(l2.cell, l2.originalIndex)}</div>` : ""}
+              ${rc ? b`<div class="cell-wrap" style="grid-column: 3; grid-row: ${r2 + 1};">${cellTemplate(rc.cell, rc.originalIndex)}</div>` : ""}
             `;
     })}
         </div>
@@ -2345,6 +2384,29 @@ class JkBmsReactorCardEditor extends i {
         background: rgba(255, 255, 255, 0.06);
         color: var(--primary-text-color);
       }
+
+      .radio-group {
+        display: flex;
+        gap: 14px;
+        align-items: center;
+        flex-wrap: wrap;
+      }
+
+      .radio {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        cursor: pointer;
+        user-select: none;
+        color: var(--primary-text-color);
+        font-size: 14px;
+      }
+
+      .radio input {
+        width: 16px;
+        height: 16px;
+        accent-color: var(--primary-color);
+      }
     `;
   }
   setConfig(config) {
@@ -2361,6 +2423,7 @@ class JkBmsReactorCardEditor extends i {
       show_overlay: config.show_overlay ?? true,
       show_cell_labels: config.show_cell_labels ?? true,
       cell_columns: config.cell_columns ?? 2,
+      cell_order_mode: config.cell_order_mode ?? "linear",
       pack_voltage_min: config.pack_voltage_min,
       pack_voltage_max: config.pack_voltage_max,
       capacity_remaining: config.capacity_remaining ?? "",
@@ -2465,6 +2528,35 @@ class JkBmsReactorCardEditor extends i {
         </div>
 
         ${useCellsArray ? this._renderCellsArray() : this._renderCellsPrefix()}
+
+        <div class="option">
+          <label>Cell Order Mode</label>
+          <div class="radio-group">
+            <label class="radio">
+              <input
+                type="radio"
+                name="cell_order_mode"
+                .checked=${(this._config.cell_order_mode ?? "linear") === "linear"}
+                .value=${"linear"}
+                .configValue=${"cell_order_mode"}
+                @change=${this._valueChanged}
+              />
+              Linear (1–2 / 3–4)
+            </label>
+            <label class="radio">
+              <input
+                type="radio"
+                name="cell_order_mode"
+                .checked=${(this._config.cell_order_mode ?? "linear") === "bank"}
+                .value=${"bank"}
+                .configValue=${"cell_order_mode"}
+                @change=${this._valueChanged}
+              />
+              Bank (1–9 / 2–10)
+            </label>
+          </div>
+          <div class="description">Controls how cells are arranged in the 2-column grid</div>
+        </div>
 
         <div class="section-title">Optional Settings</div>
 

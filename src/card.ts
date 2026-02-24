@@ -55,6 +55,8 @@ export class JkBmsReactorCard extends LitElement {
       pack_voltage_max: config.pack_voltage_max,
       capacity_remaining: config.capacity_remaining,
       capacity_total_ah: config.capacity_total_ah,
+
+      cell_order_mode: config.cell_order_mode ?? 'linear',
     };
   }
 
@@ -414,7 +416,7 @@ export class JkBmsReactorCard extends LitElement {
 
     const segCount = 360;
     const activeSegs = Math.max(0, Math.min(segCount, Math.round((soc / 100) * segCount)));
-    const socGlowClass = isChargingFlow ? 'charging' : isDischargingFlow ? 'discharging' : '';
+    const socGlowClass = isChargingFlow ? 'charging' : isDischargingFlow ? 'discharging' : 'standby';
 
     const capacityLeftAh =
       (packState.capacityRemainingAh ?? null) ??
@@ -490,34 +492,34 @@ export class JkBmsReactorCard extends LitElement {
         </div>
 
         <!-- SVG Flow Lines with animated dots -->
-        <svg class="flow-svg" viewBox="0 0 400 180" preserveAspectRatio="meet">
+        <svg class="flow-svg" viewBox="0 0 400 180" preserveAspectRatio="none">
           <!-- Charge line (left to center) -->
-          <line x1="80" y1="90" x2="150" y2="90" 
+          <line x1="62.5" y1="90" x2="200" y2="90" 
                 class="flow-line ${isChargingFlow ? 'active-charge' : 'inactive'}" />
           ${isChargingFlow ? svg`
             <circle class="flow-dot dot-1" r="${chargeDotSize}" fill="var(--solar-color)">
-              <animateMotion dur="2s" repeatCount="indefinite" path="M 80,90 L 150,90" />
+              <animateMotion dur="2s" repeatCount="indefinite" path="M 62.5,90 L 200,90" />
             </circle>
             <circle class="flow-dot dot-2" r="${chargeDotSize}" fill="var(--solar-color)">
-              <animateMotion dur="2s" repeatCount="indefinite" begin="0.5s" path="M 80,90 L 150,90" />
+              <animateMotion dur="2s" repeatCount="indefinite" begin="0.5s" path="M 62.5,90 L 200,90" />
             </circle>
             <circle class="flow-dot dot-3" r="${chargeDotSize}" fill="var(--solar-color)">
-              <animateMotion dur="2s" repeatCount="indefinite" begin="1s" path="M 80,90 L 150,90" />
+              <animateMotion dur="2s" repeatCount="indefinite" begin="1s" path="M 62.5,90 L 200,90" />
             </circle>
           ` : ''}
           
           <!-- Discharge line (center to right) -->
-          <line x1="250" y1="90" x2="320" y2="90" 
+          <line x1="200" y1="90" x2="337.5" y2="90" 
                 class="flow-line ${isDischargingFlow ? 'active-discharge' : 'inactive'}" />
           ${isDischargingFlow ? svg`
             <circle class="flow-dot dot-1" r="${dischargeDotSize}" fill="var(--discharge-color)">
-              <animateMotion dur="2s" repeatCount="indefinite" path="M 250,90 L 320,90" />
+              <animateMotion dur="2s" repeatCount="indefinite" path="M 200,90 L 337.5,90" />
             </circle>
             <circle class="flow-dot dot-2" r="${dischargeDotSize}" fill="var(--discharge-color)">
-              <animateMotion dur="2s" repeatCount="indefinite" begin="0.5s" path="M 250,90 L 320,90" />
+              <animateMotion dur="2s" repeatCount="indefinite" begin="0.5s" path="M 200,90 L 337.5,90" />
             </circle>
             <circle class="flow-dot dot-3" r="${dischargeDotSize}" fill="var(--discharge-color)">
-              <animateMotion dur="2s" repeatCount="indefinite" begin="1s" path="M 250,90 L 320,90" />
+              <animateMotion dur="2s" repeatCount="indefinite" begin="1s" path="M 200,90 L 337.5,90" />
             </circle>
           ` : ''}
         </svg>
@@ -525,7 +527,7 @@ export class JkBmsReactorCard extends LitElement {
 
       <!-- Stats Panels with sparklines -->
       <div class="stats-grid">
-        <div class="stat-panel">
+        <div class="stat-panel stat-voltage">
           <svg class="stat-sparkline-svg" viewBox="0 0 100 30" preserveAspectRatio="none" aria-hidden="true">
             <polyline class="sparkline voltage" points="${this._sparklinePoints(this._history.voltage, 100, 30, {
             min: this._config.pack_voltage_min,
@@ -535,21 +537,21 @@ export class JkBmsReactorCard extends LitElement {
           <div class="stat-label">Voltage</div>
           <div class="stat-value">${formatNumber(packState.voltage, 2)} V</div>
         </div>
-        <div class="stat-panel ${current > 0.5 ? 'flow-in' : current < -0.5 ? 'flow-out' : ''}">
+        <div class="stat-panel stat-current ${current > 0.5 ? 'flow-in' : current < -0.5 ? 'flow-out' : ''}">
           <svg class="stat-sparkline-svg" viewBox="0 0 100 30" preserveAspectRatio="none" aria-hidden="true">
             <polyline class="sparkline current" points="${this._sparklinePoints(this._history.current)}"></polyline>
           </svg>
           <div class="stat-label">Current</div>
           <div class="stat-value">${formatNumber(packState.current, 2)} A</div>
         </div>
-        <div class="stat-panel ${current > 0.5 ? 'flow-in' : current < -0.5 ? 'flow-out' : ''}">
+        <div class="stat-panel stat-power ${current > 0.5 ? 'flow-in' : current < -0.5 ? 'flow-out' : ''}">
           <svg class="stat-sparkline-svg" viewBox="0 0 100 30" preserveAspectRatio="none" aria-hidden="true">
             <polyline class="sparkline power" points="${this._sparklinePoints(this._history.power)}"></polyline>
           </svg>
           <div class="stat-label">Power</div>
           <div class="stat-value">${formatNumber(Math.abs((packState.voltage ?? 0) * (packState.current ?? 0)), 1)} W</div>
         </div>
-        <div class="stat-panel delta-minmax-panel">
+        <div class="stat-panel stat-delta delta-minmax-panel">
           <div class="delta-minmax-container">
             <div class="delta-left">
               <svg class="delta-sparkline-svg" viewBox="0 0 100 30" preserveAspectRatio="none" aria-hidden="true">
@@ -574,7 +576,7 @@ export class JkBmsReactorCard extends LitElement {
         </div>
 
         ${this._config.mos_temp ? html`
-          <div class="stat-panel">
+          <div class="stat-panel stat-mos-temp">
             <svg class="stat-sparkline-svg" viewBox="0 0 100 30" preserveAspectRatio="none" aria-hidden="true">
               <polyline class="sparkline temp" points="${this._sparklinePoints(this._historyByEntity[this._config.mos_temp] ?? [])}"></polyline>
             </svg>
@@ -604,9 +606,39 @@ export class JkBmsReactorCard extends LitElement {
     const showLabels = this._config.show_cell_labels !== false;
     const compact = this._config.compact_cells ?? false;
 
-    const left = packState.cells.filter((_, i) => i % 2 === 0);
-    const right = packState.cells.filter((_, i) => i % 2 === 1);
+    const mode = this._config.cell_order_mode ?? 'linear';
+    const n = packState.cells.length;
+    const half = Math.ceil(n / 2);
+
+    type Slot = { cell: (typeof packState.cells)[number]; originalIndex: number };
+
+    const left: Slot[] = [];
+    const right: Slot[] = [];
+
+    if (mode === 'bank') {
+      for (let i = 0; i < Math.min(half, n); i++) {
+        left.push({ cell: packState.cells[i], originalIndex: i });
+      }
+      for (let i = half; i < n; i++) {
+        right.push({ cell: packState.cells[i], originalIndex: i });
+      }
+    } else {
+      for (let i = 0; i < n; i++) {
+        if (i % 2 === 0) left.push({ cell: packState.cells[i], originalIndex: i });
+        else right.push({ cell: packState.cells[i], originalIndex: i });
+      }
+    }
+
     const rows = Math.max(left.length, right.length);
+
+    const posForIndex = (idx: number) => {
+      if (mode === 'bank') {
+        return idx < half
+          ? { row: idx, side: 0 }
+          : { row: idx - half, side: 1 };
+      }
+      return { row: Math.floor(idx / 2), side: idx % 2 };
+    };
 
     const dischargingIndex = packState.cells.findIndex(
       c => c.isBalancing && c.balanceDirection === 'discharging'
@@ -618,23 +650,36 @@ export class JkBmsReactorCard extends LitElement {
 
     const startIndex = dischargingIndex;
     const endIndex = chargingIndex;
-    const startRow = startIndex >= 0 ? Math.floor(startIndex / 2) : 0;
-    const endRow = endIndex >= 0 ? Math.floor(endIndex / 2) : 0;
-    const startSide = startIndex % 2; // 0=left, 1=right
-    const endSide = endIndex % 2;
+    const startPos = startIndex >= 0 ? posForIndex(startIndex) : { row: 0, side: 0 };
+    const endPos = endIndex >= 0 ? posForIndex(endIndex) : { row: 0, side: 0 };
+    const startRow = startPos.row;
+    const endRow = endPos.row;
+    const startSide = startPos.side; // 0=left, 1=right
+    const endSide = endPos.side;
     const flowDirClass = showConnector ? (startRow > endRow ? 'dir-up' : 'dir-down') : '';
 
-    const cellTemplate = (cell: any, index: number) => {
+    const step = 10;
+    const y = (r: number) => r * step + step / 2;
+    const xL = 0;
+    const xR = 100;
+    const xM = 50;
+
+    const xStart = startSide === 0 ? xL : xR;
+    const xEnd = endSide === 0 ? xL : xR;
+    const yStart = y(startRow);
+    const yEnd = y(endRow);
+
+    const cellTemplate = (cell: any, originalIndex: number) => {
       const cellClass = this._getCellVoltageClass(cell.voltage, packState.minCell, packState.maxCell);
       return html`
         <div class="cell ${cellClass} ${cell.isBalancing ? `balancing${cell.balanceDirection ? ` balancing-${cell.balanceDirection}` : ''}` : ''}">
           ${compact ? html`
             <div class="cell-compact-row">
-              <span class="cell-index">${index + 1}:</span>
+              <span class="cell-index">${originalIndex + 1}:</span>
               <span class="cell-compact-voltage">${formatNumber(cell.voltage, 3)}V</span>
             </div>
           ` : html`
-            ${showLabels ? html`<div class="cell-label">Cell ${index + 1}</div>` : ''}
+            ${showLabels ? html`<div class="cell-label">Cell ${originalIndex + 1}</div>` : ''}
             <div class="cell-voltage">
               ${formatNumber(cell.voltage, 3)}
               <span class="cell-voltage-unit">V</span>
@@ -647,17 +692,6 @@ export class JkBmsReactorCard extends LitElement {
 
     const connectorPath = () => {
       if (!showConnector) return '';
-      const step = 10;
-      const y = (r: number) => r * step + step / 2;
-      const xL = 0;
-      const xR = 100;
-      const xM = 50;
-
-      const xStart = startSide === 0 ? xL : xR;
-      const xEnd = endSide === 0 ? xL : xR;
-      const yStart = y(startRow);
-      const yEnd = y(endRow);
-
       if (startRow === endRow) {
         return `M ${xStart} ${yStart} L ${xM} ${yStart} L ${xEnd} ${yEnd}`;
       }
@@ -671,7 +705,14 @@ export class JkBmsReactorCard extends LitElement {
           <div class="cell-flow-column ${showConnector ? 'active' : ''} ${flowDirClass}" style="grid-row: 1 / span ${Math.max(1, rows)};">
             <svg class="cell-flow-svg" viewBox="0 0 100 ${Math.max(1, rows) * 10}" preserveAspectRatio="none" aria-hidden="true">
               <defs>
-                <linearGradient id="cellFlowGrad-${this._uid}" x1="0" y1="0" x2="1" y2="0">
+                <linearGradient
+                  id="cellFlowGrad-${this._uid}"
+                  gradientUnits="userSpaceOnUse"
+                  x1="${xStart}"
+                  y1="${yStart}"
+                  x2="${xEnd}"
+                  y2="${yEnd}"
+                >
                   <stop offset="0%" stop-color="var(--balance-discharge-color)"></stop>
                   <stop offset="100%" stop-color="var(--balance-charge-color)"></stop>
                 </linearGradient>
@@ -683,11 +724,8 @@ export class JkBmsReactorCard extends LitElement {
                 stroke="url(#cellFlowGrad-${this._uid})"
               ></path>
               ${showConnector ? svg`
-                <circle class="cell-flow-dot" r="2.6" fill="var(--balance-discharge-color)">
+                <circle class="cell-flow-dot" r="3.2" fill="url(#cellFlowGrad-${this._uid})">
                   <animateMotion dur="1.8s" repeatCount="indefinite" path="${connectorPath()}" />
-                </circle>
-                <circle class="cell-flow-dot" r="2.6" fill="var(--balance-charge-color)">
-                  <animateMotion dur="1.8s" repeatCount="indefinite" begin="0.6s" path="${connectorPath()}" />
                 </circle>
               ` : ''}
             </svg>
@@ -696,11 +734,9 @@ export class JkBmsReactorCard extends LitElement {
           ${Array.from({ length: rows }, (_, r) => {
       const l = left[r];
       const rc = right[r];
-      const lIndex = r * 2;
-      const rIndex = r * 2 + 1;
       return html`
-              ${l ? html`<div class="cell-wrap" style="grid-column: 1; grid-row: ${r + 1};">${cellTemplate(l, lIndex)}</div>` : ''}
-              ${rc ? html`<div class="cell-wrap" style="grid-column: 3; grid-row: ${r + 1};">${cellTemplate(rc, rIndex)}</div>` : ''}
+              ${l ? html`<div class="cell-wrap" style="grid-column: 1; grid-row: ${r + 1};">${cellTemplate(l.cell, l.originalIndex)}</div>` : ''}
+              ${rc ? html`<div class="cell-wrap" style="grid-column: 3; grid-row: ${r + 1};">${cellTemplate(rc.cell, rc.originalIndex)}</div>` : ''}
             `;
     })}
         </div>
