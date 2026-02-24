@@ -28,6 +28,9 @@ export interface JkBmsReactorCardConfig {
     current: string;
     soc: string;
 
+    // Optional: average cell voltage provided by BMS/HA
+    avg_cell_voltage?: string;
+
     // Optional scaling for pack voltage sparkline
     pack_voltage_min?: number;
     pack_voltage_max?: number;
@@ -75,6 +78,9 @@ export interface JkBmsReactorCardConfig {
     analytics_capacity_ah?: string;
     analytics_soc?: string; // override SOC entity for analytics sessions
     measured_capacity_ah?: string; // if present, used to estimate SOH
+
+    // UI toggle for analytics section
+    show_battery_analytics?: boolean;
 
     nominal_capacity_ah?: number; // default 314
     nominal_voltage_v?: number;   // default 51.2 (16S LFP)

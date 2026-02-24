@@ -130,6 +130,7 @@ export class JkBmsReactorCardEditor extends LitElement {
       pack_voltage: config.pack_voltage ?? '',
       current: config.current ?? '',
       soc: config.soc ?? '',
+      avg_cell_voltage: config.avg_cell_voltage ?? '',
       cells_prefix: config.cells_prefix ?? 'sensor.jk_bms_cell_',
       cells_count: config.cells_count ?? 16,
       balance_threshold_v: config.balance_threshold_v ?? 0.01,
@@ -153,6 +154,8 @@ export class JkBmsReactorCardEditor extends LitElement {
       analytics_capacity_ah: config.analytics_capacity_ah ?? '',
       analytics_soc: config.analytics_soc ?? '',
       measured_capacity_ah: config.measured_capacity_ah ?? '',
+
+      show_battery_analytics: config.show_battery_analytics ?? true,
 
       nominal_capacity_ah: config.nominal_capacity_ah,
       nominal_voltage_v: config.nominal_voltage_v,
@@ -261,6 +264,17 @@ export class JkBmsReactorCardEditor extends LitElement {
       onChanged: this._valueChanged,
     })}
           <div class="description">Entity for battery state of charge (%)</div>
+        </div>
+
+        <div class="option">
+          <label title="Optional: if provided, this value is shown in the Delta min/max block and included in the snapshot.">Avg Cell Voltage Entity (Optional)</label>
+          ${this._renderEntityPicker({
+      value: this._config.avg_cell_voltage || '',
+      configValue: 'avg_cell_voltage',
+      includeDomains: ['sensor', 'input_number', 'number'],
+      onChanged: this._valueChanged,
+    })}
+          <div class="description">Entity for average cell voltage (V)</div>
         </div>
 
         <div class="section-title">Cell Configuration</div>
@@ -408,6 +422,18 @@ export class JkBmsReactorCardEditor extends LitElement {
         </div>
 
         <div class="section-title">Battery Analytics (Optional)</div>
+
+        <div class="option">
+          <ha-switch
+            .checked=${this._config.show_battery_analytics ?? true}
+            .configValue=${'show_battery_analytics'}
+            @change=${this._toggleChanged}
+            title="Show or hide the Battery Analytics section (rendered below the cells)."
+          >
+            <span slot="label">Show Battery Analytics</span>
+          </ha-switch>
+          <div class="description">When enabled, shown below the cells</div>
+        </div>
 
         <div class="option">
           <label title="Preferred: a persistent counter of total charged energy (kWh). If blank, the card will derive charge/discharge kWh locally by integrating power.">Charge Energy Total (kWh)</label>

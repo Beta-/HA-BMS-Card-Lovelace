@@ -1,6 +1,6 @@
 {
     "name": "jk-bms-reactor-card",
-    "version": "1.0.0",
+    "version": "1.0.1",
     "description": "A Lovelace custom card for visualizing JK BMS battery packs in a reactor-style layout",
     "main": "dist/jk-bms-reactor-card.js",
     "type": "module",

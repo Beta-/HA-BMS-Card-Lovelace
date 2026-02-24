@@ -1406,6 +1406,13 @@ const styles = i$3`
     font-size: 0.9em;
   }
 
+  .avg-value {
+    font-weight: bold;
+    color: var(--primary-text-color);
+    font-size: 0.9em;
+    opacity: 0.9;
+  }
+
   .cell.balancing {
     border-color: var(--balancing-color);
     animation: cell-balance-pulse 2s ease-in-out infinite;
@@ -2149,6 +2156,12 @@ class JkBmsReactorCard extends i {
     const voltage = packState.voltage;
     const current = packState.current;
     const power = (voltage ?? 0) * (current ?? 0);
+    const avgCellV = (() => {
+      const entityId = (this._config.avg_cell_voltage ?? "").trim();
+      const fromEntity = entityId ? getNumericValue(this.hass, entityId) : null;
+      if (fromEntity !== null && Number.isFinite(fromEntity)) return fromEntity;
+      return packState.cells.length ? packState.cells.reduce((sum, c2) => sum + c2.voltage, 0) / packState.cells.length : null;
+    })();
     const delta = packState.delta;
     const minV = packState.minCell;
     const maxV = packState.maxCell;
@@ -2167,6 +2180,7 @@ class JkBmsReactorCard extends i {
       `Delta: ${formatNumber(delta, 3)} V`,
       `Min Cell: ${formatNumber(minV, 3)} V${minIdx.length ? ` (cells ${minIdx.join(", ")})` : ""}`,
       `Max Cell: ${formatNumber(maxV, 3)} V${maxIdx.length ? ` (cells ${maxIdx.join(", ")})` : ""}`,
+      `Avg Cell: ${formatNumber(avgCellV, 3)} V`,
       packState.isBalancing && packState.balanceCurrent !== null ? `Balance Current: ${formatNumber(packState.balanceCurrent, 2)} A` : `Balance Current: -`,
       "",
       `Cells CSV (V): ${cellsCsv}`,
@@ -2509,6 +2523,7 @@ class JkBmsReactorCard extends i {
                 <div class="card-content">
                     ${this._renderPackInfo(packState)}
                     ${this._renderReactor(packState)}
+            ${this._renderBatteryAnalytics(packState)}
                     ${this._renderStatusBar(packState)}
                 </div>
             </ha-card>
@@ -2572,47 +2587,6 @@ class JkBmsReactorCard extends i {
       const clamped = Math.max(0, Math.min(1, t2));
       return clamped * total;
     })() : null;
-    const chargeTotalId = this._firstExistingEntityId([
-      this._config.analytics_charge_energy_total_kwh,
-      "sensor.main_mainbms_charge_energy_total_kwh"
-    ]);
-    const dischargeTotalId = this._firstExistingEntityId([
-      this._config.analytics_discharge_energy_total_kwh,
-      "sensor.main_mainbms_discharge_energy_total_kwh"
-    ]);
-    const cycleCountId = this._firstExistingEntityId([
-      this._config.analytics_cycle_count,
-      "sensor.main_mainbms_cycle_count"
-    ]);
-    const capacityAhId = this._firstExistingEntityId([
-      this._config.analytics_capacity_ah,
-      "sensor.main_mainbns_capacity_ah"
-    ]);
-    const chargeTotalKwh = chargeTotalId ? getNumericValue(this.hass, chargeTotalId) : null;
-    const dischargeTotalKwh = dischargeTotalId ? getNumericValue(this.hass, dischargeTotalId) : null;
-    const cycleCountDirect = cycleCountId ? getNumericValue(this.hass, cycleCountId) : null;
-    const lifetimeDischargeKwh = dischargeTotalKwh ?? (this._analyticsDischargeKwh || null);
-    const lifetimeChargeKwh = chargeTotalKwh ?? (this._analyticsChargeKwh || null);
-    const nominalCapacityAh = (() => {
-      if (Number.isFinite(this._config.nominal_capacity_ah)) return this._config.nominal_capacity_ah;
-      const fromEntity = capacityAhId ? getNumericValue(this.hass, capacityAhId) : null;
-      if (fromEntity !== null && Number.isFinite(fromEntity) && fromEntity > 0) return fromEntity;
-      return 314;
-    })();
-    const nominalVoltageV = Number.isFinite(this._config.nominal_voltage_v) ? this._config.nominal_voltage_v : 51.2;
-    const nominalPackKwh = nominalCapacityAh > 0 && nominalVoltageV > 0 ? nominalCapacityAh * nominalVoltageV / 1e3 : null;
-    const equivalentCycles = cycleCountDirect !== null && Number.isFinite(cycleCountDirect) ? cycleCountDirect : lifetimeDischargeKwh !== null && nominalPackKwh !== null && nominalPackKwh > 0 ? lifetimeDischargeKwh / nominalPackKwh : null;
-    const measuredCapacityAhId = this._firstExistingEntityId([
-      this._config.measured_capacity_ah
-    ]);
-    const measuredCapacityAh = measuredCapacityAhId ? getNumericValue(this.hass, measuredCapacityAhId) : null;
-    const sohPct = measuredCapacityAh !== null && Number.isFinite(measuredCapacityAh) && nominalCapacityAh > 0 ? measuredCapacityAh / nominalCapacityAh * 100 : null;
-    const avgDodPct = this._dodSessions.length ? this._dodSessions.reduce((sum, x2) => sum + x2, 0) / this._dodSessions.length : null;
-    const lifetimeTitle = dischargeTotalId ? `Direct: ${dischargeTotalId}` : "Derived: integrated discharge power (local)";
-    const cyclesTitle = cycleCountId ? `Direct: ${cycleCountId}` : lifetimeDischargeKwh !== null && nominalPackKwh !== null ? `Derived: discharge_kWh / nominal_pack_kWh (${formatNumber(nominalPackKwh, 2)} kWh)` : "Derived: needs lifetime discharge kWh and nominal pack kWh";
-    const dodTitle = this._dodSessions.length ? `Derived: rolling avg over ${this._dodSessions.length} discharge sessions` : "Derived: needs SOC + discharge sessions";
-    const sohTitle = measuredCapacityAhId ? `Derived: ${measuredCapacityAhId} / nominal_capacity_ah` : "Derived: needs measured capacity Ah entity";
-    const showAnalytics = chargeTotalId !== null || dischargeTotalId !== null || cycleCountId !== null || capacityAhId !== null || measuredCapacityAhId !== null || this._analyticsChargeKwh > 0 || this._analyticsDischargeKwh > 0 || this._dodSessions.length > 0;
     return b`
       <div class="flow-section">
         <!-- Charger Node -->
@@ -2724,11 +2698,6 @@ class JkBmsReactorCard extends i {
           <div class="stat-value">${formatNumber(packState.voltage, 2)} V</div>
         </div>
 
-        <div class="stat-panel stat-avg-cell" title="Average of all cell voltages">
-          <div class="stat-label">Avg Cell</div>
-          <div class="stat-value">${avgCellV !== null ? `${formatNumber(avgCellV, 3)} V` : "—"}</div>
-        </div>
-
         <div class="stat-panel stat-current ${current > 0.5 ? "flow-in" : current < -0.5 ? "flow-out" : ""}">
           <svg class="stat-sparkline-svg" viewBox="0 0 100 30" preserveAspectRatio="none" aria-hidden="true">
             <polyline class="sparkline current" points="${this._sparklinePoints(this._history.current)}"></polyline>
@@ -2783,6 +2752,16 @@ class JkBmsReactorCard extends i {
                 <ha-icon class="minmax-icon" icon="mdi:arrow-down-bold"></ha-icon>
                 <span class="min-value">${formatNumber(packState.minCell, 3)}V</span>
               </div>
+              <div class="minmax-divider"></div>
+              <div class="minmax-row avg" title="Average cell voltage">
+                <ha-icon class="minmax-icon" icon="mdi:approximately-equal"></ha-icon>
+                <span class="avg-value">${(() => {
+        const entityId = (this._config.avg_cell_voltage ?? "").trim();
+        const fromEntity = entityId ? getNumericValue(this.hass, entityId) : null;
+        const v2 = fromEntity !== null && Number.isFinite(fromEntity) ? fromEntity : avgCellV2;
+        return v2 !== null ? `${formatNumber(v2, 3)}V` : "—";
+      })()}</span>
+              </div>
             </div>
           </div>
         </div>`;
@@ -2812,37 +2791,82 @@ class JkBmsReactorCard extends i {
           `)}
         </div>
       ` : ""}
-
-      ${showAnalytics ? b`
-        <div class="analysis-section">
-          <div class="analysis-title">Battery analytics</div>
-          <div class="analysis-grid">
-            <div class="stat-panel" title="${lifetimeTitle}">
-              <div class="stat-label">Lifetime discharge</div>
-              <div class="stat-value">${lifetimeDischargeKwh !== null ? `${formatNumber(lifetimeDischargeKwh, 1)} kWh` : "—"}</div>
-            </div>
-            <div class="stat-panel" title="${cyclesTitle}">
-              <div class="stat-label">Eq cycles</div>
-              <div class="stat-value">${equivalentCycles !== null ? formatNumber(equivalentCycles, 1) : "—"}</div>
-            </div>
-            <div class="stat-panel" title="${dodTitle}">
-              <div class="stat-label">Avg DoD</div>
-              <div class="stat-value">${avgDodPct !== null ? `${formatNumber(avgDodPct, 0)}%` : "—"}</div>
-            </div>
-            <div class="stat-panel" title="${sohTitle}">
-              <div class="stat-label">Est SOH</div>
-              <div class="stat-value">${sohPct !== null ? `${formatNumber(sohPct, 0)}%` : "—"}</div>
-            </div>
+    `;
+  }
+  _renderBatteryAnalytics(_packState) {
+    const enabled = this._config.show_battery_analytics ?? true;
+    if (!enabled) return b``;
+    const chargeTotalId = this._firstExistingEntityId([
+      this._config.analytics_charge_energy_total_kwh,
+      "sensor.main_mainbms_charge_energy_total_kwh"
+    ]);
+    const dischargeTotalId = this._firstExistingEntityId([
+      this._config.analytics_discharge_energy_total_kwh,
+      "sensor.main_mainbms_discharge_energy_total_kwh"
+    ]);
+    const cycleCountId = this._firstExistingEntityId([
+      this._config.analytics_cycle_count,
+      "sensor.main_mainbms_cycle_count"
+    ]);
+    const capacityAhId = this._firstExistingEntityId([
+      this._config.analytics_capacity_ah,
+      "sensor.main_mainbns_capacity_ah"
+    ]);
+    const chargeTotalKwh = chargeTotalId ? getNumericValue(this.hass, chargeTotalId) : null;
+    const dischargeTotalKwh = dischargeTotalId ? getNumericValue(this.hass, dischargeTotalId) : null;
+    const cycleCountDirect = cycleCountId ? getNumericValue(this.hass, cycleCountId) : null;
+    const lifetimeDischargeKwh = dischargeTotalKwh ?? (this._analyticsDischargeKwh || null);
+    const lifetimeChargeKwh = chargeTotalKwh ?? (this._analyticsChargeKwh || null);
+    const nominalCapacityAh = (() => {
+      if (Number.isFinite(this._config.nominal_capacity_ah)) return this._config.nominal_capacity_ah;
+      const fromEntity = capacityAhId ? getNumericValue(this.hass, capacityAhId) : null;
+      if (fromEntity !== null && Number.isFinite(fromEntity) && fromEntity > 0) return fromEntity;
+      return 314;
+    })();
+    const nominalVoltageV = Number.isFinite(this._config.nominal_voltage_v) ? this._config.nominal_voltage_v : 51.2;
+    const nominalPackKwh = nominalCapacityAh > 0 && nominalVoltageV > 0 ? nominalCapacityAh * nominalVoltageV / 1e3 : null;
+    const equivalentCycles = cycleCountDirect !== null && Number.isFinite(cycleCountDirect) ? cycleCountDirect : lifetimeDischargeKwh !== null && nominalPackKwh !== null && nominalPackKwh > 0 ? lifetimeDischargeKwh / nominalPackKwh : null;
+    const measuredCapacityAhId = this._firstExistingEntityId([
+      this._config.measured_capacity_ah
+    ]);
+    const measuredCapacityAh = measuredCapacityAhId ? getNumericValue(this.hass, measuredCapacityAhId) : null;
+    const sohPct = measuredCapacityAh !== null && Number.isFinite(measuredCapacityAh) && nominalCapacityAh > 0 ? measuredCapacityAh / nominalCapacityAh * 100 : null;
+    const avgDodPct = this._dodSessions.length ? this._dodSessions.reduce((sum, x2) => sum + x2, 0) / this._dodSessions.length : null;
+    const lifetimeTitle = dischargeTotalId ? `Direct: ${dischargeTotalId}` : "Derived: integrated discharge power (local)";
+    const cyclesTitle = cycleCountId ? `Direct: ${cycleCountId}` : lifetimeDischargeKwh !== null && nominalPackKwh !== null ? `Derived: discharge_kWh / nominal_pack_kWh (${formatNumber(nominalPackKwh, 2)} kWh)` : "Derived: needs lifetime discharge kWh and nominal pack kWh";
+    const dodTitle = this._dodSessions.length ? `Derived: rolling avg over ${this._dodSessions.length} discharge sessions` : "Derived: needs SOC + discharge sessions";
+    const sohTitle = measuredCapacityAhId ? `Derived: ${measuredCapacityAhId} / nominal_capacity_ah` : "Derived: needs measured capacity Ah entity";
+    const showAnalytics = chargeTotalId !== null || dischargeTotalId !== null || cycleCountId !== null || capacityAhId !== null || measuredCapacityAhId !== null || this._analyticsChargeKwh > 0 || this._analyticsDischargeKwh > 0 || this._dodSessions.length > 0;
+    if (!showAnalytics) return b``;
+    return b`
+      <div class="analysis-section">
+        <div class="analysis-title">Battery analytics</div>
+        <div class="analysis-grid">
+          <div class="stat-panel" title="${lifetimeTitle}">
+            <div class="stat-label">Lifetime discharge</div>
+            <div class="stat-value">${lifetimeDischargeKwh !== null ? `${formatNumber(lifetimeDischargeKwh, 1)} kWh` : "—"}</div>
           </div>
-          ${lifetimeChargeKwh !== null || lifetimeDischargeKwh !== null ? b`
-            <div class="analysis-subtitle">
-              ${lifetimeChargeKwh !== null ? b`Charge: ${formatNumber(lifetimeChargeKwh, 1)} kWh` : ""}
-              ${lifetimeChargeKwh !== null && lifetimeDischargeKwh !== null ? b` · ` : ""}
-              ${lifetimeDischargeKwh !== null ? b`Discharge: ${formatNumber(lifetimeDischargeKwh, 1)} kWh` : ""}
-            </div>
-          ` : ""}
+          <div class="stat-panel" title="${cyclesTitle}">
+            <div class="stat-label">Eq cycles</div>
+            <div class="stat-value">${equivalentCycles !== null ? formatNumber(equivalentCycles, 1) : "—"}</div>
+          </div>
+          <div class="stat-panel" title="${dodTitle}">
+            <div class="stat-label">Avg DoD</div>
+            <div class="stat-value">${avgDodPct !== null ? `${formatNumber(avgDodPct, 0)}%` : "—"}</div>
+          </div>
+          <div class="stat-panel" title="${sohTitle}">
+            <div class="stat-label">Est SOH</div>
+            <div class="stat-value">${sohPct !== null ? `${formatNumber(sohPct, 0)}%` : "—"}</div>
+          </div>
         </div>
-      ` : ""}
+        ${lifetimeChargeKwh !== null || lifetimeDischargeKwh !== null ? b`
+          <div class="analysis-subtitle">
+            ${lifetimeChargeKwh !== null ? b`Charge: ${formatNumber(lifetimeChargeKwh, 1)} kWh` : ""}
+            ${lifetimeChargeKwh !== null && lifetimeDischargeKwh !== null ? b` · ` : ""}
+            ${lifetimeDischargeKwh !== null ? b`Discharge: ${formatNumber(lifetimeDischargeKwh, 1)} kWh` : ""}
+          </div>
+        ` : ""}
+      </div>
     `;
   }
   _renderReactor(packState) {
@@ -3240,6 +3264,7 @@ class JkBmsReactorCardEditor extends i {
       pack_voltage: config.pack_voltage ?? "",
       current: config.current ?? "",
       soc: config.soc ?? "",
+      avg_cell_voltage: config.avg_cell_voltage ?? "",
       cells_prefix: config.cells_prefix ?? "sensor.jk_bms_cell_",
       cells_count: config.cells_count ?? 16,
       balance_threshold_v: config.balance_threshold_v ?? 0.01,
@@ -3260,6 +3285,7 @@ class JkBmsReactorCardEditor extends i {
       analytics_capacity_ah: config.analytics_capacity_ah ?? "",
       analytics_soc: config.analytics_soc ?? "",
       measured_capacity_ah: config.measured_capacity_ah ?? "",
+      show_battery_analytics: config.show_battery_analytics ?? true,
       nominal_capacity_ah: config.nominal_capacity_ah,
       nominal_voltage_v: config.nominal_voltage_v,
       min_current_for_session_a: config.min_current_for_session_a,
@@ -3350,6 +3376,17 @@ class JkBmsReactorCardEditor extends i {
       onChanged: this._valueChanged
     })}
           <div class="description">Entity for battery state of charge (%)</div>
+        </div>
+
+        <div class="option">
+          <label title="Optional: if provided, this value is shown in the Delta min/max block and included in the snapshot.">Avg Cell Voltage Entity (Optional)</label>
+          ${this._renderEntityPicker({
+      value: this._config.avg_cell_voltage || "",
+      configValue: "avg_cell_voltage",
+      includeDomains: ["sensor", "input_number", "number"],
+      onChanged: this._valueChanged
+    })}
+          <div class="description">Entity for average cell voltage (V)</div>
         </div>
 
         <div class="section-title">Cell Configuration</div>
@@ -3497,6 +3534,18 @@ class JkBmsReactorCardEditor extends i {
         </div>
 
         <div class="section-title">Battery Analytics (Optional)</div>
+
+        <div class="option">
+          <ha-switch
+            .checked=${this._config.show_battery_analytics ?? true}
+            .configValue=${"show_battery_analytics"}
+            @change=${this._toggleChanged}
+            title="Show or hide the Battery Analytics section (rendered below the cells)."
+          >
+            <span slot="label">Show Battery Analytics</span>
+          </ha-switch>
+          <div class="description">When enabled, shown below the cells</div>
+        </div>
 
         <div class="option">
           <label title="Preferred: a persistent counter of total charged energy (kWh). If blank, the card will derive charge/discharge kWh locally by integrating power.">Charge Energy Total (kWh)</label>

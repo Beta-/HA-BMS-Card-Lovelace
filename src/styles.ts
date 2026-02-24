@@ -693,6 +693,13 @@ export const styles = css`
     font-size: 0.9em;
   }
 
+  .avg-value {
+    font-weight: bold;
+    color: var(--primary-text-color);
+    font-size: 0.9em;
+    opacity: 0.9;
+  }
+
   .cell.balancing {
     border-color: var(--balancing-color);
     animation: cell-balance-pulse 2s ease-in-out infinite;
