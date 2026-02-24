@@ -46,7 +46,7 @@ export function getCellEntityIds(config: JkBmsReactorCardConfig): string[] {
 
     if (config.cells_prefix && config.cells_count) {
         const count = config.cells_count;
-        return Array.from({ length: count }, (_, i) => `${config.cells_prefix}${i + 1}`);
+        return Array.from({ length: count }, (_, i) => `${config.cells_prefix}${String(i + 1).padStart(2, '0')}`);
     }
 
     // Default: assume 16 cells

@@ -2,8 +2,6 @@ import { LitElement, html, svg } from 'lit';
 import { property, state } from 'lit/decorators.js';
 import type { HomeAssistant, JkBmsReactorCardConfig, PackState } from './types';
 import { computePackState, formatNumber } from './ha_state';
-import { getCellPositions, getReactorViewBox } from './reactor_layout';
-import { renderBalanceOverlay, renderEnergyFlow } from './balance_overlay';
 import { styles } from './styles';
 
 export class JkBmsReactorCard extends LitElement {
@@ -105,61 +103,91 @@ export class JkBmsReactorCard extends LitElement {
   }
 
   private _renderPackInfo(packState: PackState) {
+    const current = packState.current ?? 0;
+    const voltage = packState.voltage ?? 0;
+    const isChargingFlow = packState.isCharging && current > 0;
+    const isDischargingFlow = packState.isDischarging && current < 0;
+    const power = Math.abs(voltage * current);
+
     return html`
-      <div class="pack-info">
-        <div class="info-item">
-          <div class="info-label">Voltage</div>
-          <div class="info-value">
-            ${formatNumber(packState.voltage, 2)}
-            <span class="info-unit">V</span>
+      <div class="flow-section">
+        <!-- Solar/Grid/Charger Node -->
+        <div class="flow-node">
+          <div class="icon-circle ${isChargingFlow ? 'active-charge' : ''}">
+            <ha-icon icon="mdi:solar-power"></ha-icon>
+          </div>
+          <div class="node-label">Charge</div>
+          <div class="node-status">
+            <span class="${packState.isCharging ? 'status-on' : 'status-off'}">
+              ${packState.isCharging ? 'ON' : 'OFF'}
+            </span>
           </div>
         </div>
-        
-        <div class="info-item">
-          <div class="info-label">Current</div>
-          <div class="info-value">
-            ${formatNumber(packState.current, 2)}
-            <span class="info-unit">A</span>
+
+        <!-- Reactor Ring (SOC Display) -->
+        <div class="reactor-ring ${packState.isBalancing ? 'balancing-active' : ''}">
+          <div class="soc-label">SoC</div>
+          <div class="soc-value">${formatNumber(packState.soc, 0)}%</div>
+          <div class="capacity-text">
+            ${packState.isBalancing ? 'Balancing' : `${formatNumber(packState.voltage, 1)}V`}
           </div>
         </div>
-        
-        <div class="info-item">
-          <div class="info-label">SOC</div>
-          <div class="info-value">
-            ${formatNumber(packState.soc, 0)}
-            <span class="info-unit">%</span>
+
+        <!-- Load/Discharge Node -->
+        <div class="flow-node">
+          <div class="icon-circle ${isDischargingFlow ? 'active-discharge' : ''}">
+            <ha-icon icon="mdi:power-plug"></ha-icon>
+          </div>
+          <div class="node-label">Load</div>
+          <div class="node-status">
+            <span class="${packState.isDischarging ? 'status-on' : 'status-off'}">
+              ${packState.isDischarging ? 'ON' : 'OFF'}
+            </span>
           </div>
         </div>
-        
-        <div class="info-item">
-          <div class="info-label">Delta</div>
-          <div class="info-value">
-            ${formatNumber(packState.delta, 3)}
-            <span class="info-unit">V</span>
-          </div>
+
+        <!-- SVG Flow Lines -->
+        <svg class="flow-svg" viewBox="0 0 400 180" preserveAspectRatio="meet">
+          <!-- Charge path (left to center) -->
+          <path d="M 60,70 Q 120,70 125,90" 
+                class="flow-path ${isChargingFlow ? 'path-active-charge' : 'path-inactive'}" />
+          <!-- Discharge path (center to right) -->
+          <path d="M 275,90 Q 280,70 340,70" 
+                class="flow-path ${isDischargingFlow ? 'path-active-discharge' : 'path-inactive'}" />
+        </svg>
+      </div>
+
+      <!-- Stats Panels -->
+      <div class="stats-grid">
+        <div class="stat-panel">
+          <div class="stat-label">Voltage</div>
+          <div class="stat-value">${formatNumber(packState.voltage, 2)} V</div>
         </div>
-        
-        <div class="info-item">
-          <div class="info-label">Min Cell</div>
-          <div class="info-value">
-            ${formatNumber(packState.minCell, 3)}
-            <span class="info-unit">V</span>
-          </div>
+        <div class="stat-panel">
+          <div class="stat-label">Current</div>
+          <div class="stat-value">${formatNumber(packState.current, 2)} A</div>
         </div>
-        
-        <div class="info-item">
-          <div class="info-label">Max Cell</div>
-          <div class="info-value">
-            ${formatNumber(packState.maxCell, 3)}
-            <span class="info-unit">V</span>
-          </div>
+        <div class="stat-panel">
+          <div class="stat-label">Power</div>
+          <div class="stat-value">${formatNumber(power, 1)} W</div>
+        </div>
+        <div class="stat-panel">
+          <div class="stat-label">Delta</div>
+          <div class="stat-value">${formatNumber(packState.delta, 3)} V</div>
+        </div>
+        <div class="stat-panel">
+          <div class="stat-label">Min Cell</div>
+          <div class="stat-value">${formatNumber(packState.minCell, 3)} V</div>
+        </div>
+        <div class="stat-panel">
+          <div class="stat-label">Max Cell</div>
+          <div class="stat-value">${formatNumber(packState.maxCell, 3)} V</div>
         </div>
       </div>
     `;
   }
 
   private _renderReactor(packState: PackState) {
-    const showOverlay = this._config.show_overlay !== false;
     const showLabels = this._config.show_cell_labels !== false;
 
     return html`
@@ -179,31 +207,16 @@ export class JkBmsReactorCard extends LitElement {
                   ${formatNumber(cell.voltage, 3)}
                   <span class="cell-voltage-unit">V</span>
                 </div>
+                ${cell.isBalancing ? html`<div class="balancing-indicator"></div>` : ''}
               </div>
             `;
     })}
-          
-          ${showOverlay ? this._renderOverlay(packState) : ''}
         </div>
       </div>
     `;
   }
 
-  private _renderOverlay(packState: PackState) {
-    const positions = getCellPositions(packState.cells.length);
-    const viewBox = getReactorViewBox(packState.cells.length);
 
-    // Calculate overlay positioning to match the grid
-    const gridGap = 12; // matches CSS gap
-    const cellsPerRow = 4;
-
-    return html`
-      <svg class="overlay-svg" viewBox="${viewBox}" preserveAspectRatio="xMidYMid meet">
-        ${renderBalanceOverlay(packState.cells, packState.isBalancing)}
-        ${renderEnergyFlow(packState.isCharging, packState.isDischarging)}
-      </svg>
-    `;
-  }
 
   private _renderStatusBar(packState: PackState) {
     const badges = [];

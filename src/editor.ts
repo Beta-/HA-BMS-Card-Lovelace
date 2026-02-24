@@ -124,6 +124,7 @@ export class JkBmsReactorCardEditor extends LitElement {
             .value=${this._config.pack_voltage || ''}
             .configValue=${'pack_voltage'}
             @value-changed=${this._valueChanged}
+            .includeDomains=${['sensor', 'input_number', 'number']}
             allow-custom-entity
           ></ha-entity-picker>
           <div class="description">Entity for total pack voltage</div>
@@ -136,6 +137,7 @@ export class JkBmsReactorCardEditor extends LitElement {
             .value=${this._config.current || ''}
             .configValue=${'current'}
             @value-changed=${this._valueChanged}
+            .includeDomains=${['sensor', 'input_number', 'number']}
             allow-custom-entity
           ></ha-entity-picker>
           <div class="description">Entity for pack current (positive = charging)</div>
@@ -148,6 +150,7 @@ export class JkBmsReactorCardEditor extends LitElement {
             .value=${this._config.soc || ''}
             .configValue=${'soc'}
             @value-changed=${this._valueChanged}
+            .includeDomains=${['sensor', 'input_number', 'number']}
             allow-custom-entity
           ></ha-entity-picker>
           <div class="description">Entity for battery state of charge (%)</div>
@@ -181,6 +184,7 @@ export class JkBmsReactorCardEditor extends LitElement {
             .value=${this._config.balancing || ''}
             .configValue=${'balancing'}
             @value-changed=${this._valueChanged}
+            .includeDomains=${['binary_sensor', 'sensor', 'input_boolean', 'switch']}
             allow-custom-entity
           ></ha-entity-picker>
           <div class="description">Binary sensor for balancing status</div>
@@ -193,6 +197,7 @@ export class JkBmsReactorCardEditor extends LitElement {
             .value=${this._config.delta || ''}
             .configValue=${'delta'}
             @value-changed=${this._valueChanged}
+            .includeDomains=${['sensor', 'input_number', 'number']}
             allow-custom-entity
           ></ha-entity-picker>
           <div class="description">Entity for cell voltage delta (auto-calculated if not provided)</div>
@@ -306,6 +311,7 @@ export class JkBmsReactorCardEditor extends LitElement {
                 .value=${cell}
                 .index=${index}
                 @value-changed=${this._cellChanged}
+                .includeDomains=${['sensor', 'input_number', 'number']}
                 allow-custom-entity
               ></ha-entity-picker>
               <mwc-icon-button

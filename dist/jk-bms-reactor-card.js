@@ -286,7 +286,7 @@ y$1.elementStyles = [], y$1.shadowRootOptions = { mode: "open" }, y$1[d$1("eleme
  * SPDX-License-Identifier: BSD-3-Clause
  */
 const t = globalThis, i$1 = (t2) => t2, s$1 = t.trustedTypes, e = s$1 ? s$1.createPolicy("lit-html", { createHTML: (t2) => t2 }) : void 0, h = "$lit$", o$2 = `lit$${Math.random().toFixed(9).slice(2)}$`, n$1 = "?" + o$2, r$2 = `<${n$1}>`, l = document, c = () => l.createComment(""), a = (t2) => null === t2 || "object" != typeof t2 && "function" != typeof t2, u = Array.isArray, d = (t2) => u(t2) || "function" == typeof (t2 == null ? void 0 : t2[Symbol.iterator]), f = "[ 	\n\f\r]", v = /<(?:(!--|\/[^a-zA-Z])|(\/?[a-zA-Z][^>\s]*)|(\/?$))/g, _ = /-->/g, m = />/g, p = RegExp(`>|${f}(?:([^\\s"'>=/]+)(${f}*=${f}*(?:[^ 	
-\f\r"'\`<>=]|("|')|))|$)`, "g"), g = /'/g, $ = /"/g, y2 = /^(?:script|style|textarea|title)$/i, x = (t2) => (i2, ...s2) => ({ _$litType$: t2, strings: i2, values: s2 }), b = x(1), w = x(2), E = Symbol.for("lit-noChange"), A = Symbol.for("lit-nothing"), C = /* @__PURE__ */ new WeakMap(), P = l.createTreeWalker(l, 129);
+\f\r"'\`<>=]|("|')|))|$)`, "g"), g = /'/g, $ = /"/g, y2 = /^(?:script|style|textarea|title)$/i, x = (t2) => (i2, ...s2) => ({ _$litType$: t2, strings: i2, values: s2 }), b = x(1), E = Symbol.for("lit-noChange"), A = Symbol.for("lit-nothing"), C = /* @__PURE__ */ new WeakMap(), P = l.createTreeWalker(l, 129);
 function V(t2, i2) {
   if (!u(t2) || !t2.hasOwnProperty("raw")) throw Error("invalid template strings array");
   return void 0 !== e ? e.createHTML(i2) : i2;
@@ -616,7 +616,7 @@ function getCellEntityIds(config) {
   }
   if (config.cells_prefix && config.cells_count) {
     const count = config.cells_count;
-    return Array.from({ length: count }, (_2, i2) => `${config.cells_prefix}${i2 + 1}`);
+    return Array.from({ length: count }, (_2, i2) => `${config.cells_prefix}${String(i2 + 1).padStart(2, "0")}`);
   }
   return [];
 }
@@ -691,187 +691,245 @@ function formatNumber(value, decimals = 2) {
   if (value === null) return "—";
   return value.toFixed(decimals);
 }
-function getCellPositions(cellCount = 16) {
-  const positions = [];
-  const cols = 4;
-  const cellSize = 80;
-  const gapSize = 20;
-  const offsetX = 50;
-  const offsetY = 50;
-  for (let i2 = 0; i2 < cellCount; i2++) {
-    const row = Math.floor(i2 / cols);
-    const col = i2 % cols;
-    positions.push({
-      index: i2,
-      x: offsetX + col * (cellSize + gapSize) + cellSize / 2,
-      y: offsetY + row * (cellSize + gapSize) + cellSize / 2
-    });
-  }
-  return positions;
-}
-function getReactorViewBox(cellCount = 16) {
-  const cols = 4;
-  const rows = Math.ceil(cellCount / cols);
-  const cellSize = 80;
-  const gapSize = 20;
-  const padding = 100;
-  const width = cols * cellSize + (cols - 1) * gapSize + padding * 2;
-  const height = rows * cellSize + (rows - 1) * gapSize + padding * 2;
-  return `0 0 ${width} ${height}`;
-}
-function renderBalanceOverlay(cells, isBalancing) {
-  if (!isBalancing) {
-    return w``;
-  }
-  const positions = getCellPositions(cells.length);
-  const balancingCells = cells.filter((c2) => c2.isBalancing);
-  const balancingPositions = balancingCells.map((c2) => positions[c2.index]);
-  if (balancingPositions.length === 0) {
-    return w``;
-  }
-  const lines = [];
-  const centerX = positions.reduce((sum, p2) => sum + p2.x, 0) / positions.length;
-  const centerY = positions.reduce((sum, p2) => sum + p2.y, 0) / positions.length;
-  for (const pos of balancingPositions) {
-    lines.push(w`
-      <line
-        x1="${centerX}"
-        y1="${centerY}"
-        x2="${pos.x}"
-        y2="${pos.y}"
-        class="balance-line"
-        stroke="var(--balance-color, #ffa500)"
-        stroke-width="2"
-        stroke-dasharray="5,5"
-      />
-    `);
-  }
-  const glowCircles = balancingPositions.map((pos) => w`
-    <circle
-      cx="${pos.x}"
-      cy="${pos.y}"
-      r="35"
-      class="balance-glow"
-      fill="none"
-      stroke="var(--balance-color, #ffa500)"
-      stroke-width="2"
-      opacity="0.6"
-    />
-  `);
-  return w`
-    <g class="balance-overlay">
-      ${lines}
-      ${glowCircles}
-      <circle
-        cx="${centerX}"
-        cy="${centerY}"
-        r="10"
-        class="balance-center"
-        fill="var(--balance-color, #ffa500)"
-        opacity="0.8"
-      />
-    </g>
-  `;
-}
-function renderEnergyFlow(isCharging, isDischarging) {
-  if (!isCharging && !isDischarging) {
-    return w``;
-  }
-  const direction = isCharging ? "charging" : "discharging";
-  const positions = getCellPositions(16);
-  const particles = [];
-  for (let i2 = 0; i2 < 8; i2++) {
-    const angle = i2 / 8 * Math.PI * 2;
-    const centerX = positions.reduce((sum, p2) => sum + p2.x, 0) / positions.length;
-    const centerY = positions.reduce((sum, p2) => sum + p2.y, 0) / positions.length;
-    const radius = 80;
-    particles.push(w`
-      <circle
-        cx="${centerX + Math.cos(angle) * radius}"
-        cy="${centerY + Math.sin(angle) * radius}"
-        r="3"
-        class="energy-particle ${direction}"
-        fill="var(--energy-color, #4CAF50)"
-        opacity="0.7"
-      />
-    `);
-  }
-  return w`
-    <g class="energy-flow ${direction}">
-      ${particles}
-    </g>
-  `;
-}
 const styles = i$3`
   :host {
-    display: block;
-    --primary-color: #03a9f4;
-    --balance-color: #ffa500;
-    --energy-color: #4caf50;
-    --warning-color: #ff9800;
-    --danger-color: #f44336;
-    --text-primary: var(--primary-text-color, #212121);
-    --text-secondary: var(--secondary-text-color, #727272);
-    --card-background: var(--ha-card-background, var(--card-background-color, #fff));
-    --divider-color: var(--divider-color, rgba(0, 0, 0, 0.12));
+    --accent-color: #41cd52;
+    --accent-color-dim: rgba(65, 205, 82, 0.2);
+    --discharge-color: #3090c7;
+    --discharge-color-dim: rgba(48, 144, 199, 0.2);
+    --solar-color: #ffd30f;
+    --balancing-color: #ff6333;
+    --panel-bg: var(--secondary-background-color, rgba(255, 255, 255, 0.05));
+    --panel-border: 1px solid var(--divider-color, rgba(255, 255, 255, 0.1));
+  }
+
+  ha-card {
+    padding: 16px;
+    background: var(--ha-card-background, var(--card-background-color));
+    border-radius: var(--ha-card-border-radius, 12px);
   }
 
   .card-content {
-    padding: 16px;
-    background: var(--card-background);
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
   }
 
-  .pack-info {
+  /* Flow Section - Top area with charge/reactor/discharge */
+  .flow-section {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
-    gap: 12px;
-    margin-bottom: 20px;
+    grid-template-columns: 1fr 1.2fr 1fr;
+    align-items: center;
+    gap: 16px;
+    position: relative;
+    min-height: 180px;
+    margin-bottom: 16px;
   }
 
-  .info-item {
+  .flow-node {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    z-index: 2;
+  }
+
+  .icon-circle {
+    width: 60px;
+    height: 60px;
+    border-radius: 50%;
+    border: 2px solid var(--secondary-text-color);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--panel-bg);
+    transition: all 0.3s ease;
+  }
+
+  .icon-circle ha-icon {
+    --mdc-icon-size: 32px;
+    color: #666;
+    transition: color 0.3s ease;
+  }
+
+  .icon-circle.active-charge {
+    border-color: var(--solar-color);
+    box-shadow: 0 0 20px var(--solar-color);
+  }
+
+  .icon-circle.active-charge ha-icon {
+    color: var(--solar-color);
+  }
+
+  .icon-circle.active-discharge {
+    border-color: var(--discharge-color);
+    box-shadow: 0 0 20px var(--discharge-color);
+  }
+
+  .icon-circle.active-discharge ha-icon {
+    color: var(--discharge-color);
+  }
+
+  .node-label {
+    font-size: 0.9em;
+    color: var(--secondary-text-color);
+    font-weight: 500;
+  }
+
+  .node-status {
+    font-size: 0.85em;
+  }
+
+  .status-on {
+    color: var(--accent-color);
+    font-weight: bold;
+  }
+
+  .status-off {
+    color: var(--disabled-text-color, #666);
+  }
+
+  /* Reactor Ring - Central SOC Display */
+  .reactor-ring {
+    width: 160px;
+    height: 160px;
+    border-radius: 50%;
+    border: 6px solid var(--accent-color);
+    box-shadow: 0 0 20px var(--accent-color-dim);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    background: var(--card-background-color);
+    margin: 0 auto;
+    position: relative;
+    z-index: 2;
+    transition: all 0.3s ease;
+  }
+
+  .reactor-ring.balancing-active {
+    border-color: var(--balancing-color);
+    box-shadow: 0 0 30px var(--balancing-color);
+    animation: reactor-pulse 2s ease-in-out infinite;
+  }
+
+  @keyframes reactor-pulse {
+    0%, 100% {
+      transform: scale(1);
+      box-shadow: 0 0 20px var(--balancing-color);
+    }
+    50% {
+      transform: scale(1.05);
+      box-shadow: 0 0 40px var(--balancing-color);
+    }
+  }
+
+  .soc-label {
+    font-size: 0.9em;
+    color: var(--secondary-text-color);
+    margin-bottom: -4px;
+  }
+
+  .soc-value {
+    font-size: 2.8em;
+    font-weight: bold;
+    color: var(--accent-color);
+    line-height: 1;
+  }
+
+  .capacity-text {
+    font-size: 0.85em;
+    color: var(--secondary-text-color);
+    margin-top: 4px;
+  }
+
+  /* SVG Flow Lines */
+  .flow-svg {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+    z-index: 1;
+  }
+
+  .flow-path {
+    fill: none;
+    stroke-width: 2;
+    stroke-dasharray: 8;
+    transition: stroke 0.3s ease;
+  }
+
+  .path-active-charge {
+    stroke: var(--solar-color);
+    animation: flow-dash 1s linear infinite;
+  }
+
+  .path-active-discharge {
+    stroke: var(--discharge-color);
+    animation: flow-dash 1s linear infinite;
+  }
+
+  .path-inactive {
+    stroke: #444;
+    stroke-dasharray: 0;
+  }
+
+  @keyframes flow-dash {
+    from {
+      stroke-dashoffset: 16;
+    }
+    to {
+      stroke-dashoffset: 0;
+    }
+  }
+
+  /* Stats Grid */
+  .stats-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 8px;
+    margin-bottom: 16px;
+  }
+
+  .stat-panel {
+    background: var(--panel-bg);
+    border: var(--panel-border);
+    border-radius: 10px;
+    padding: 12px 8px;
     text-align: center;
-    padding: 8px;
-    background: var(--primary-background-color, #fafafa);
-    border-radius: 8px;
   }
 
-  .info-label {
-    font-size: 12px;
-    color: var(--text-secondary);
+  .stat-label {
+    font-size: 0.85em;
+    color: var(--secondary-text-color);
     margin-bottom: 4px;
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
   }
 
-  .info-value {
-    font-size: 18px;
-    font-weight: 600;
-    color: var(--text-primary);
+  .stat-value {
+    font-size: 1.3em;
+    font-weight: bold;
+    color: var(--primary-text-color);
   }
 
-  .info-unit {
-    font-size: 14px;
-    color: var(--text-secondary);
-    margin-left: 2px;
-  }
-
+  /* Reactor Grid - Cell Display */
   .reactor-container {
     position: relative;
     width: 100%;
-    max-width: 500px;
-    margin: 0 auto;
   }
 
   .reactor-grid {
     display: grid;
     grid-template-columns: repeat(4, 1fr);
-    gap: 12px;
+    gap: 8px;
     position: relative;
   }
 
   .cell {
     aspect-ratio: 1;
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    background: var(--panel-bg);
+    border: 2px solid var(--panel-border);
     border-radius: 12px;
     display: flex;
     flex-direction: column;
@@ -879,17 +937,77 @@ const styles = i$3`
     align-items: center;
     position: relative;
     transition: all 0.3s ease;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    overflow: hidden;
   }
 
   .cell.balancing {
-    animation: pulse-glow 2s ease-in-out infinite;
-    box-shadow: 0 0 20px var(--balance-color);
+    border-color: var(--balancing-color);
+    animation: cell-balance-pulse 2s ease-in-out infinite;
+    box-shadow: 0 0 15px var(--balancing-color);
+    position: relative;
+  }
+
+  .cell.balancing::before {
+    content: '';
+    position: absolute;
+    inset: -4px;
+    border-radius: 14px;
+    border: 2px solid var(--balancing-color);
+    opacity: 0.5;
+    animation: balance-ring-pulse 2s ease-in-out infinite;
+  }
+
+  .cell.balancing::after {
+    content: '';
+    position: absolute;
+    inset: -8px;
+    border-radius: 16px;
+    border: 1px solid var(--balancing-color);
+    opacity: 0.3;
+    animation: balance-ring-pulse 2s ease-in-out infinite 0.5s;
+  }
+
+  @keyframes balance-ring-pulse {
+    0%, 100% {
+      transform: scale(1);
+      opacity: 0.3;
+    }
+    50% {
+      transform: scale(1.1);
+      opacity: 0.6;
+    }
+  }
+
+  .balancing-indicator {
+    position: absolute;
+    top: 4px;
+    right: 4px;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--balancing-color);
+    animation: balancing-blink 1s ease-in-out infinite;
+    box-shadow: 0 0 8px var(--balancing-color);
+  }
+
+  @keyframes balancing-blink {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.3; }
+  }
+
+  @keyframes cell-balance-pulse {
+    0%, 100% {
+      transform: scale(1);
+    }
+    50% {
+      transform: scale(1.05);
+      box-shadow: 0 0 20px var(--balancing-color);
+    }
   }
 
   .cell-label {
     font-size: 11px;
-    color: rgba(255, 255, 255, 0.8);
+    color: var(--secondary-text-color);
     margin-bottom: 4px;
     font-weight: 500;
   }
@@ -897,130 +1015,56 @@ const styles = i$3`
   .cell-voltage {
     font-size: 16px;
     font-weight: 700;
-    color: #fff;
+    color: var(--primary-text-color);
   }
 
   .cell-voltage-unit {
     font-size: 11px;
     margin-left: 2px;
-    opacity: 0.9;
+    opacity: 0.8;
   }
 
-  .overlay-svg {
-    position: absolute;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    pointer-events: none;
-    z-index: 10;
+  /* Cell voltage color coding */
+  .cell.low-voltage {
+    border-color: #ff9800;
+    background: linear-gradient(135deg, rgba(255, 152, 0, 0.1) 0%, rgba(255, 152, 0, 0.05) 100%);
   }
 
-  /* Balancing animations */
-  @keyframes pulse-glow {
-    0%, 100% {
-      box-shadow: 0 0 10px var(--balance-color);
-      transform: scale(1);
-    }
-    50% {
-      box-shadow: 0 0 25px var(--balance-color);
-      transform: scale(1.02);
-    }
+  .cell.low-voltage .cell-voltage {
+    color: #ff9800;
   }
 
-  .balance-line {
-    animation: dash-flow 2s linear infinite;
+  .cell.high-voltage {
+    border-color: #2196f3;
+    background: linear-gradient(135deg, rgba(33, 150, 243, 0.1) 0%, rgba(33, 150, 243, 0.05) 100%);
   }
 
-  @keyframes dash-flow {
-    to {
-      stroke-dashoffset: -10;
-    }
+  .cell.high-voltage .cell-voltage {
+    color: #2196f3;
   }
 
-  .balance-glow {
-    animation: glow-pulse 2s ease-in-out infinite;
+  .cell.normal-voltage {
+    border-color: var(--accent-color);
+    background: linear-gradient(135deg, var(--accent-color-dim) 0%, rgba(65, 205, 82, 0.05) 100%);
   }
 
-  @keyframes glow-pulse {
-    0%, 100% {
-      opacity: 0.3;
-      r: 35;
-    }
-    50% {
-      opacity: 0.8;
-      r: 38;
-    }
+  .cell.normal-voltage .cell-voltage {
+    color: var(--accent-color);
   }
 
-  .balance-center {
-    animation: center-pulse 2s ease-in-out infinite;
-  }
-
-  @keyframes center-pulse {
-    0%, 100% {
-      opacity: 0.6;
-      transform: scale(1);
-    }
-    50% {
-      opacity: 1;
-      transform: scale(1.2);
-    }
-  }
-
-  /* Energy flow animations */
-  .energy-flow.charging .energy-particle {
-    animation: flow-up 3s ease-in-out infinite;
-  }
-
-  .energy-flow.discharging .energy-particle {
-    animation: flow-down 3s ease-in-out infinite;
-  }
-
-  @keyframes flow-up {
-    0% {
-      opacity: 0;
-      transform: translateY(20px);
-    }
-    50% {
-      opacity: 0.7;
-    }
-    100% {
-      opacity: 0;
-      transform: translateY(-20px);
-    }
-  }
-
-  @keyframes flow-down {
-    0% {
-      opacity: 0;
-      transform: translateY(-20px);
-    }
-    50% {
-      opacity: 0.7;
-    }
-    100% {
-      opacity: 0;
-      transform: translateY(20px);
-    }
-  }
-
-  .energy-particle {
-    animation-delay: calc(var(--particle-index, 0) * 0.2s);
-  }
-
-  /* Status indicators */
+  /* Status Bar */
   .status-bar {
     display: flex;
     gap: 8px;
-    margin-top: 16px;
+    margin-top: 12px;
     flex-wrap: wrap;
+    justify-content: center;
   }
 
   .status-badge {
-    padding: 4px 12px;
-    border-radius: 12px;
-    font-size: 12px;
+    padding: 6px 14px;
+    border-radius: 20px;
+    font-size: 13px;
     font-weight: 600;
     display: inline-flex;
     align-items: center;
@@ -1028,62 +1072,71 @@ const styles = i$3`
   }
 
   .status-badge.charging {
-    background: rgba(76, 175, 80, 0.1);
-    color: #4caf50;
+    background: rgba(255, 211, 15, 0.15);
+    color: var(--solar-color);
+    border: 1px solid var(--solar-color);
   }
 
   .status-badge.discharging {
-    background: rgba(33, 150, 243, 0.1);
-    color: #2196f3;
+    background: var(--discharge-color-dim);
+    color: var(--discharge-color);
+    border: 1px solid var(--discharge-color);
   }
 
   .status-badge.balancing {
-    background: rgba(255, 165, 0, 0.1);
-    color: #ffa500;
+    background: rgba(255, 99, 51, 0.15);
+    color: var(--balancing-color);
+    border: 1px solid var(--balancing-color);
   }
 
   .status-indicator {
-    width: 6px;
-    height: 6px;
+    width: 8px;
+    height: 8px;
     border-radius: 50%;
     background: currentColor;
-    animation: blink 1.5s ease-in-out infinite;
+    animation: status-blink 1.5s ease-in-out infinite;
   }
 
-  @keyframes blink {
+  @keyframes status-blink {
     0%, 100% { opacity: 1; }
-    50% { opacity: 0.4; }
-  }
-
-  /* Cell voltage color coding */
-  .cell.low-voltage {
-    background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
-  }
-
-  .cell.high-voltage {
-    background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
-  }
-
-  .cell.normal-voltage {
-    background: linear-gradient(135deg, #43e97b 0%, #38f9d7 100%);
+    50% { opacity: 0.3; }
   }
 
   /* Responsive design */
   @media (max-width: 600px) {
-    .pack-info {
+    .stats-grid {
       grid-template-columns: repeat(2, 1fr);
     }
 
-    .info-value {
-      font-size: 16px;
+    .flow-section {
+      grid-template-columns: 0.8fr 1.2fr 0.8fr;
+      min-height: 150px;
+    }
+
+    .icon-circle {
+      width: 50px;
+      height: 50px;
+    }
+
+    .icon-circle ha-icon {
+      --mdc-icon-size: 26px;
+    }
+
+    .reactor-ring {
+      width: 130px;
+      height: 130px;
+    }
+
+    .soc-value {
+      font-size: 2.2em;
+    }
+
+    .reactor-grid {
+      gap: 6px;
     }
 
     .cell-voltage {
       font-size: 14px;
-    }
-
-    .reactor-grid {
-      gap: 8px;
     }
   }
 `;
@@ -1177,60 +1230,89 @@ class JkBmsReactorCard extends i {
         `;
   }
   _renderPackInfo(packState) {
+    const current = packState.current ?? 0;
+    const voltage = packState.voltage ?? 0;
+    const isChargingFlow = packState.isCharging && current > 0;
+    const isDischargingFlow = packState.isDischarging && current < 0;
+    const power = Math.abs(voltage * current);
     return b`
-      <div class="pack-info">
-        <div class="info-item">
-          <div class="info-label">Voltage</div>
-          <div class="info-value">
-            ${formatNumber(packState.voltage, 2)}
-            <span class="info-unit">V</span>
+      <div class="flow-section">
+        <!-- Solar/Grid/Charger Node -->
+        <div class="flow-node">
+          <div class="icon-circle ${isChargingFlow ? "active-charge" : ""}">
+            <ha-icon icon="mdi:solar-power"></ha-icon>
+          </div>
+          <div class="node-label">Charge</div>
+          <div class="node-status">
+            <span class="${packState.isCharging ? "status-on" : "status-off"}">
+              ${packState.isCharging ? "ON" : "OFF"}
+            </span>
           </div>
         </div>
-        
-        <div class="info-item">
-          <div class="info-label">Current</div>
-          <div class="info-value">
-            ${formatNumber(packState.current, 2)}
-            <span class="info-unit">A</span>
+
+        <!-- Reactor Ring (SOC Display) -->
+        <div class="reactor-ring ${packState.isBalancing ? "balancing-active" : ""}">
+          <div class="soc-label">SoC</div>
+          <div class="soc-value">${formatNumber(packState.soc, 0)}%</div>
+          <div class="capacity-text">
+            ${packState.isBalancing ? "Balancing" : `${formatNumber(packState.voltage, 1)}V`}
           </div>
         </div>
-        
-        <div class="info-item">
-          <div class="info-label">SOC</div>
-          <div class="info-value">
-            ${formatNumber(packState.soc, 0)}
-            <span class="info-unit">%</span>
+
+        <!-- Load/Discharge Node -->
+        <div class="flow-node">
+          <div class="icon-circle ${isDischargingFlow ? "active-discharge" : ""}">
+            <ha-icon icon="mdi:power-plug"></ha-icon>
+          </div>
+          <div class="node-label">Load</div>
+          <div class="node-status">
+            <span class="${packState.isDischarging ? "status-on" : "status-off"}">
+              ${packState.isDischarging ? "ON" : "OFF"}
+            </span>
           </div>
         </div>
-        
-        <div class="info-item">
-          <div class="info-label">Delta</div>
-          <div class="info-value">
-            ${formatNumber(packState.delta, 3)}
-            <span class="info-unit">V</span>
-          </div>
+
+        <!-- SVG Flow Lines -->
+        <svg class="flow-svg" viewBox="0 0 400 180" preserveAspectRatio="meet">
+          <!-- Charge path (left to center) -->
+          <path d="M 60,70 Q 120,70 125,90" 
+                class="flow-path ${isChargingFlow ? "path-active-charge" : "path-inactive"}" />
+          <!-- Discharge path (center to right) -->
+          <path d="M 275,90 Q 280,70 340,70" 
+                class="flow-path ${isDischargingFlow ? "path-active-discharge" : "path-inactive"}" />
+        </svg>
+      </div>
+
+      <!-- Stats Panels -->
+      <div class="stats-grid">
+        <div class="stat-panel">
+          <div class="stat-label">Voltage</div>
+          <div class="stat-value">${formatNumber(packState.voltage, 2)} V</div>
         </div>
-        
-        <div class="info-item">
-          <div class="info-label">Min Cell</div>
-          <div class="info-value">
-            ${formatNumber(packState.minCell, 3)}
-            <span class="info-unit">V</span>
-          </div>
+        <div class="stat-panel">
+          <div class="stat-label">Current</div>
+          <div class="stat-value">${formatNumber(packState.current, 2)} A</div>
         </div>
-        
-        <div class="info-item">
-          <div class="info-label">Max Cell</div>
-          <div class="info-value">
-            ${formatNumber(packState.maxCell, 3)}
-            <span class="info-unit">V</span>
-          </div>
+        <div class="stat-panel">
+          <div class="stat-label">Power</div>
+          <div class="stat-value">${formatNumber(power, 1)} W</div>
+        </div>
+        <div class="stat-panel">
+          <div class="stat-label">Delta</div>
+          <div class="stat-value">${formatNumber(packState.delta, 3)} V</div>
+        </div>
+        <div class="stat-panel">
+          <div class="stat-label">Min Cell</div>
+          <div class="stat-value">${formatNumber(packState.minCell, 3)} V</div>
+        </div>
+        <div class="stat-panel">
+          <div class="stat-label">Max Cell</div>
+          <div class="stat-value">${formatNumber(packState.maxCell, 3)} V</div>
         </div>
       </div>
     `;
   }
   _renderReactor(packState) {
-    const showOverlay = this._config.show_overlay !== false;
     const showLabels = this._config.show_cell_labels !== false;
     return b`
       <div class="reactor-container">
@@ -1248,23 +1330,12 @@ class JkBmsReactorCard extends i {
                   ${formatNumber(cell.voltage, 3)}
                   <span class="cell-voltage-unit">V</span>
                 </div>
+                ${cell.isBalancing ? b`<div class="balancing-indicator"></div>` : ""}
               </div>
             `;
     })}
-          
-          ${showOverlay ? this._renderOverlay(packState) : ""}
         </div>
       </div>
-    `;
-  }
-  _renderOverlay(packState) {
-    getCellPositions(packState.cells.length);
-    const viewBox = getReactorViewBox(packState.cells.length);
-    return b`
-      <svg class="overlay-svg" viewBox="${viewBox}" preserveAspectRatio="xMidYMid meet">
-        ${renderBalanceOverlay(packState.cells, packState.isBalancing)}
-        ${renderEnergyFlow(packState.isCharging, packState.isDischarging)}
-      </svg>
     `;
   }
   _renderStatusBar(packState) {
@@ -1430,6 +1501,7 @@ class JkBmsReactorCardEditor extends i {
             .value=${this._config.pack_voltage || ""}
             .configValue=${"pack_voltage"}
             @value-changed=${this._valueChanged}
+            .includeDomains=${["sensor", "input_number", "number"]}
             allow-custom-entity
           ></ha-entity-picker>
           <div class="description">Entity for total pack voltage</div>
@@ -1442,6 +1514,7 @@ class JkBmsReactorCardEditor extends i {
             .value=${this._config.current || ""}
             .configValue=${"current"}
             @value-changed=${this._valueChanged}
+            .includeDomains=${["sensor", "input_number", "number"]}
             allow-custom-entity
           ></ha-entity-picker>
           <div class="description">Entity for pack current (positive = charging)</div>
@@ -1454,6 +1527,7 @@ class JkBmsReactorCardEditor extends i {
             .value=${this._config.soc || ""}
             .configValue=${"soc"}
             @value-changed=${this._valueChanged}
+            .includeDomains=${["sensor", "input_number", "number"]}
             allow-custom-entity
           ></ha-entity-picker>
           <div class="description">Entity for battery state of charge (%)</div>
@@ -1487,6 +1561,7 @@ class JkBmsReactorCardEditor extends i {
             .value=${this._config.balancing || ""}
             .configValue=${"balancing"}
             @value-changed=${this._valueChanged}
+            .includeDomains=${["binary_sensor", "sensor", "input_boolean", "switch"]}
             allow-custom-entity
           ></ha-entity-picker>
           <div class="description">Binary sensor for balancing status</div>
@@ -1499,6 +1574,7 @@ class JkBmsReactorCardEditor extends i {
             .value=${this._config.delta || ""}
             .configValue=${"delta"}
             @value-changed=${this._valueChanged}
+            .includeDomains=${["sensor", "input_number", "number"]}
             allow-custom-entity
           ></ha-entity-picker>
           <div class="description">Entity for cell voltage delta (auto-calculated if not provided)</div>
@@ -1609,6 +1685,7 @@ class JkBmsReactorCardEditor extends i {
                 .value=${cell}
                 .index=${index}
                 @value-changed=${this._cellChanged}
+                .includeDomains=${["sensor", "input_number", "number"]}
                 allow-custom-entity
               ></ha-entity-picker>
               <mwc-icon-button

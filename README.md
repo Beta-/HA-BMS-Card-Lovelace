@@ -7,13 +7,15 @@ A beautiful, reactor-style Lovelace custom card for visualizing JK BMS battery p
 
 ## Features
 
-✨ **Reactor-Style Layout**: 16 cells displayed in an elegant 4×4 grid layout  
-📊 **Pack Statistics**: Display voltage, current, SOC, min/max cell voltages, and delta  
-⚖️ **Balancing Visualization**: SVG overlay with animated lines connecting balancing cells  
-⚡ **Energy Flow Animations**: Charging/discharging animations with particle effects  
-🎨 **Color-Coded Cells**: Visual feedback for cell voltage levels  
+✨ **Core Reactor Design**: Central circular SOC display with animated reactor ring  
+⚡ **Energy Flow Nodes**: Visual charge/discharge flow between solar/grid, reactor, and load  
+📊 **Enhanced Stats**: Six-panel metrics grid with voltage, current, power, delta, min/max  
+🎯 **Animated SVG Paths**: Flowing dash animations showing real-time energy direction  
+💎 **Smart Cell Grid**: 16 cells in 4×4 layout with voltage-based color gradients  
+⚖️ **Balancing Visualization**: Pulsing reactor ring and cell highlighting during balancing  
+🎨 **Modern UI**: Glassmorphism panels with dynamic borders and shadows  
 🔒 **Safe & Performant**: Gracefully handles missing entities without crashes  
-📱 **Responsive Design**: Adapts to different screen sizes
+📱 **Responsive Design**: Optimized for mobile and desktop viewing
 
 ## Installation
 
