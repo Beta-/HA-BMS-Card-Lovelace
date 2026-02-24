@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>JK BMS Reactor Card - Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 50px auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+
+        .test-container {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+        }
+
+        .status {
+            padding: 12px;
+            margin: 10px 0;
+            border-radius: 4px;
+            font-weight: bold;
+        }
+
+        .success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+
+        .error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+
+        .info {
+            background: #d1ecf1;
+            color: #0c5460;
+            border: 1px solid #bee5eb;
+        }
+
+        pre {
+            background: #f8f9fa;
+            padding: 12px;
+            border-radius: 4px;
+            overflow-x: auto;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="test-container">
+        <h1>🔋 JK BMS Reactor Card - Load Test</h1>
+
+        <div id="load-status" class="status info">
+            ⏳ Loading card JavaScript...
+        </div>
+
+        <h2>Instructions:</h2>
+        <ol>
+            <li>Copy <code>dist/jk-bms-reactor-card.js</code> to the same directory as this HTML file</li>
+            <li>Open this file in a web browser</li>
+            <li>Check the status messages below</li>
+            <li>Open browser console (F12) to see detailed logs</li>
+        </ol>
+
+        <h2>Test Results:</h2>
+        <div id="results"></div>
+    </div>
+
+    <script type="module">
+        const resultsDiv = document.getElementById('results');
+        const statusDiv = document.getElementById('load-status');
+
+        function addResult(message, type = 'info') {
+            const div = document.createElement('div');
+            div.className = `status ${type}`;
+            div.textContent = message;
+            resultsDiv.appendChild(div);
+        }
+
+        // Test 1: Load the JavaScript file
+        try {
+            await import('./jk-bms-reactor-card.js');
+            statusDiv.className = 'status success';
+            statusDiv.textContent = '✅ JavaScript file loaded successfully!';
+            addResult('✅ JavaScript file loaded', 'success');
+        } catch (error) {
+            statusDiv.className = 'status error';
+            statusDiv.textContent = '❌ Failed to load JavaScript file';
+            addResult(`❌ Failed to load: ${error.message}`, 'error');
+            console.error('Load error:', error);
+        }
+
+        // Test 2: Check if custom element is defined
+        setTimeout(() => {
+            if (customElements.get('jk-bms-reactor-card')) {
+                addResult('✅ Custom element "jk-bms-reactor-card" is registered', 'success');
+            } else {
+                addResult('❌ Custom element "jk-bms-reactor-card" NOT registered', 'error');
+            }
+
+            if (customElements.get('jk-bms-reactor-card-editor')) {
+                addResult('✅ Custom element "jk-bms-reactor-card-editor" is registered', 'success');
+            } else {
+                addResult('❌ Custom element "jk-bms-reactor-card-editor" NOT registered', 'error');
+            }
+
+            // Test 3: Check window.customCards
+            if (window.customCards && window.customCards.length > 0) {
+                const cardInfo = window.customCards.find(c => c.type === 'jk-bms-reactor-card');
+                if (cardInfo) {
+                    addResult('✅ Card registered in window.customCards', 'success');
+                    const pre = document.createElement('pre');
+                    pre.textContent = JSON.stringify(cardInfo, null, 2);
+                    resultsDiv.appendChild(pre);
+                }
+            }
+
+            // Test 4: Try to create the element
+            try {
+                const element = document.createElement('jk-bms-reactor-card');
+                if (element) {
+                    addResult('✅ Element can be created programmatically', 'success');
+
+                    // Check if it has required methods
+                    if (typeof element.setConfig === 'function') {
+                        addResult('✅ setConfig method exists', 'success');
+                    } else {
+                        addResult('❌ setConfig method missing', 'error');
+                    }
+
+                    if (typeof element.getCardSize === 'function') {
+                        addResult('✅ getCardSize method exists', 'success');
+                    } else {
+                        addResult('⚠️ getCardSize method missing (optional)', 'info');
+                    }
+                }
+            } catch (error) {
+                addResult(`❌ Cannot create element: ${error.message}`, 'error');
+            }
+
+            // Final summary
+            const hr = document.createElement('hr');
+            resultsDiv.appendChild(hr);
+
+            const allElements = [
+                customElements.get('jk-bms-reactor-card'),
+                customElements.get('jk-bms-reactor-card-editor')
+            ];
+
+            if (allElements.every(e => e)) {
+                addResult('🎉 ALL TESTS PASSED! Card is ready to use in Home Assistant.', 'success');
+                addResult('Next step: Copy the .js file to /config/www/jk-bms-reactor-card/ in Home Assistant', 'info');
+            } else {
+                addResult('❌ Some tests failed. Check console (F12) for errors.', 'error');
+            }
+        }, 1000);
+    </script>
+</body>
+
+</html>

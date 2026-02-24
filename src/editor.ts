@@ -3,11 +3,11 @@ import { property, state } from 'lit/decorators.js';
 import type { HomeAssistant, JkBmsReactorCardConfig } from './types';
 
 export class JkBmsReactorCardEditor extends LitElement {
-    @property({ attribute: false }) public hass!: HomeAssistant;
-    @state() private _config!: JkBmsReactorCardConfig;
+  @property({ attribute: false }) public hass!: HomeAssistant;
+  @state() private _config!: JkBmsReactorCardConfig;
 
-    static get styles() {
-        return css`
+  static get styles() {
+    return css`
       .card-config {
         display: flex;
         flex-direction: column;
@@ -76,20 +76,44 @@ export class JkBmsReactorCardEditor extends LitElement {
         margin-top: 8px;
       }
     `;
+  }
+
+  public setConfig(config: JkBmsReactorCardConfig): void {
+    // Ensure we have a valid config object with defaults
+    this._config = {
+      ...config,
+      pack_voltage: config.pack_voltage ?? '',
+      current: config.current ?? '',
+      soc: config.soc ?? '',
+      cells_prefix: config.cells_prefix ?? 'sensor.jk_bms_cell_',
+      cells_count: config.cells_count ?? 16,
+      balance_threshold_v: config.balance_threshold_v ?? 0.01,
+      charge_threshold_a: config.charge_threshold_a ?? 0.5,
+      discharge_threshold_a: config.discharge_threshold_a ?? 0.5,
+      show_overlay: config.show_overlay ?? true,
+      show_cell_labels: config.show_cell_labels ?? true,
+    };
+  }
+
+  protected render() {
+    if (!this._config) {
+      return html``;
     }
 
-    public setConfig(config: JkBmsReactorCardConfig): void {
-        this._config = config;
+    // If hass isn't loaded yet, show loading state
+    if (!this.hass) {
+      return html`
+        <div class="card-config">
+          <div class="option">
+            <p>Loading...</p>
+          </div>
+        </div>
+      `;
     }
 
-    protected render() {
-        if (!this.hass || !this._config) {
-            return html``;
-        }
+    const useCellsArray = Array.isArray(this._config.cells) && this._config.cells.length > 0;
 
-        const useCellsArray = Array.isArray(this._config.cells) && this._config.cells.length > 0;
-
-        return html`
+    return html`
       <div class="card-config">
         <div class="section-title">Required Settings</div>
 
@@ -237,10 +261,10 @@ export class JkBmsReactorCardEditor extends LitElement {
         </div>
       </div>
     `;
-    }
+  }
 
-    private _renderCellsPrefix() {
-        return html`
+  private _renderCellsPrefix() {
+    return html`
       <div class="option">
         <label>Cell Entity Prefix</label>
         <ha-textfield
@@ -265,12 +289,12 @@ export class JkBmsReactorCardEditor extends LitElement {
         <div class="description">Total number of cells (default: 16)</div>
       </div>
     `;
-    }
+  }
 
-    private _renderCellsArray() {
-        const cells = this._config.cells || [];
+  private _renderCellsArray() {
+    const cells = this._config.cells || [];
 
-        return html`
+    return html`
       <div class="option">
         <label>Cell Entities</label>
         <div class="cells-list">
@@ -301,101 +325,101 @@ export class JkBmsReactorCardEditor extends LitElement {
         </mwc-button>
       </div>
     `;
+  }
+
+  private _setCellsMode(mode: 'array' | 'prefix') {
+    const newConfig = { ...this._config };
+
+    if (mode === 'array') {
+      // Switch to cells array
+      const count = newConfig.cells_count || 16;
+      const prefix = newConfig.cells_prefix || 'sensor.jk_bms_cell_';
+      newConfig.cells = Array.from({ length: count }, (_, i) => `${prefix}${i + 1}`);
+      delete newConfig.cells_prefix;
+      delete newConfig.cells_count;
+    } else {
+      // Switch to prefix mode
+      const cellCount = Array.isArray(newConfig.cells) ? newConfig.cells.length : 16;
+      newConfig.cells_prefix = 'sensor.jk_bms_cell_';
+      newConfig.cells_count = cellCount;
+      delete newConfig.cells;
     }
 
-    private _setCellsMode(mode: 'array' | 'prefix') {
-        const newConfig = { ...this._config };
+    this._config = newConfig;
+    this._configChanged();
+  }
 
-        if (mode === 'array') {
-            // Switch to cells array
-            const count = newConfig.cells_count || 16;
-            const prefix = newConfig.cells_prefix || 'sensor.jk_bms_cell_';
-            newConfig.cells = Array.from({ length: count }, (_, i) => `${prefix}${i + 1}`);
-            delete newConfig.cells_prefix;
-            delete newConfig.cells_count;
-        } else {
-            // Switch to prefix mode
-            const cellCount = Array.isArray(newConfig.cells) ? newConfig.cells.length : 16;
-            newConfig.cells_prefix = 'sensor.jk_bms_cell_';
-            newConfig.cells_count = cellCount;
-            delete newConfig.cells;
-        }
+  private _addCell() {
+    const cells = [...(this._config.cells || [])];
+    cells.push('');
+    this._config = { ...this._config, cells };
+    this._configChanged();
+  }
 
-        this._config = newConfig;
-        this._configChanged();
+  private _removeCell(index: number) {
+    const cells = [...(this._config.cells || [])];
+    cells.splice(index, 1);
+    this._config = { ...this._config, cells };
+    this._configChanged();
+  }
+
+  private _cellChanged(ev: CustomEvent) {
+    const target = ev.target as any;
+    const index = target.index;
+    const value = ev.detail.value;
+
+    const cells = [...(this._config.cells || [])];
+    cells[index] = value;
+    this._config = { ...this._config, cells };
+    this._configChanged();
+  }
+
+  private _valueChanged(ev: CustomEvent) {
+    const target = ev.target as any;
+    const configValue = target.configValue;
+    let value = target.value;
+
+    // Handle entity picker
+    if (ev.detail && ev.detail.value !== undefined) {
+      value = ev.detail.value;
     }
 
-    private _addCell() {
-        const cells = [...(this._config.cells || [])];
-        cells.push('');
-        this._config = { ...this._config, cells };
-        this._configChanged();
+    // Convert numeric values
+    if (target.type === 'number') {
+      value = value === '' ? undefined : Number(value);
     }
 
-    private _removeCell(index: number) {
-        const cells = [...(this._config.cells || [])];
-        cells.splice(index, 1);
-        this._config = { ...this._config, cells };
-        this._configChanged();
-    }
+    if (!configValue) return;
 
-    private _cellChanged(ev: CustomEvent) {
-        const target = ev.target as any;
-        const index = target.index;
-        const value = ev.detail.value;
+    this._config = {
+      ...this._config,
+      [configValue]: value,
+    };
 
-        const cells = [...(this._config.cells || [])];
-        cells[index] = value;
-        this._config = { ...this._config, cells };
-        this._configChanged();
-    }
+    this._configChanged();
+  }
 
-    private _valueChanged(ev: CustomEvent) {
-        const target = ev.target as any;
-        const configValue = target.configValue;
-        let value = target.value;
+  private _toggleChanged(ev: CustomEvent) {
+    const target = ev.target as any;
+    const configValue = target.configValue;
+    const checked = target.checked;
 
-        // Handle entity picker
-        if (ev.detail && ev.detail.value !== undefined) {
-            value = ev.detail.value;
-        }
+    if (!configValue) return;
 
-        // Convert numeric values
-        if (target.type === 'number') {
-            value = value === '' ? undefined : Number(value);
-        }
+    this._config = {
+      ...this._config,
+      [configValue]: checked,
+    };
 
-        if (!configValue) return;
+    this._configChanged();
+  }
 
-        this._config = {
-            ...this._config,
-            [configValue]: value,
-        };
-
-        this._configChanged();
-    }
-
-    private _toggleChanged(ev: CustomEvent) {
-        const target = ev.target as any;
-        const configValue = target.configValue;
-        const checked = target.checked;
-
-        if (!configValue) return;
-
-        this._config = {
-            ...this._config,
-            [configValue]: checked,
-        };
-
-        this._configChanged();
-    }
-
-    private _configChanged() {
-        const event = new CustomEvent('config-changed', {
-            detail: { config: this._config },
-            bubbles: true,
-            composed: true,
-        });
-        this.dispatchEvent(event);
-    }
+  private _configChanged() {
+    const event = new CustomEvent('config-changed', {
+      detail: { config: this._config },
+      bubbles: true,
+      composed: true,
+    });
+    this.dispatchEvent(event);
+  }
 }

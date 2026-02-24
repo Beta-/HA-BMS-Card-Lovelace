@@ -1104,25 +1104,19 @@ class JkBmsReactorCard extends i {
     if (!config) {
       throw new Error("Invalid configuration");
     }
-    if (!config.pack_voltage) {
-      throw new Error("pack_voltage is required");
-    }
-    if (!config.current) {
-      throw new Error("current is required");
-    }
-    if (!config.soc) {
-      throw new Error("soc is required");
-    }
-    if (!config.cells && (!config.cells_prefix || !config.cells_count)) {
-      throw new Error("Either cells array or cells_prefix + cells_count is required");
-    }
     this._config = {
-      show_overlay: true,
-      show_cell_labels: true,
-      balance_threshold_v: 0.01,
-      charge_threshold_a: 0.5,
-      discharge_threshold_a: 0.5,
-      ...config
+      ...config,
+      // Apply defaults only if not provided
+      pack_voltage: config.pack_voltage ?? "",
+      current: config.current ?? "",
+      soc: config.soc ?? "",
+      cells_prefix: config.cells_prefix ?? "sensor.jk_bms_cell_",
+      cells_count: config.cells_count ?? 16,
+      show_overlay: config.show_overlay ?? true,
+      show_cell_labels: config.show_cell_labels ?? true,
+      balance_threshold_v: config.balance_threshold_v ?? 0.01,
+      charge_threshold_a: config.charge_threshold_a ?? 0.5,
+      discharge_threshold_a: config.discharge_threshold_a ?? 0.5
     };
   }
   getCardSize() {
@@ -1150,16 +1144,37 @@ class JkBmsReactorCard extends i {
     if (!this.hass || !this._config) {
       return b``;
     }
+    const hasRequiredConfig = this._config.pack_voltage && this._config.current && this._config.soc;
+    const hasCellsConfig = this._config.cells || this._config.cells_prefix && this._config.cells_count;
+    if (!hasRequiredConfig || !hasCellsConfig) {
+      return b`
+                <ha-card>
+                    <div class="card-content" style="padding: 24px; text-align: center;">
+                        <ha-icon icon="mdi:alert-circle-outline" style="font-size: 48px; color: var(--warning-color);"></ha-icon>
+                        <h3 style="margin: 16px 0 8px;">Configuration Required</h3>
+                        <p style="color: var(--secondary-text-color); margin: 0;">
+                            Please configure the card using the visual editor.
+                        </p>
+                        <ul style="text-align: left; display: inline-block; margin-top: 16px;">
+                            ${!this._config.pack_voltage ? b`<li>Pack Voltage entity</li>` : ""}
+                            ${!this._config.current ? b`<li>Current entity</li>` : ""}
+                            ${!this._config.soc ? b`<li>SOC entity</li>` : ""}
+                            ${!hasCellsConfig ? b`<li>Cell configuration (cells array or prefix+count)</li>` : ""}
+                        </ul>
+                    </div>
+                </ha-card>
+            `;
+    }
     const packState = computePackState(this.hass, this._config);
     return b`
-      <ha-card>
-        <div class="card-content">
-          ${this._renderPackInfo(packState)}
-          ${this._renderReactor(packState)}
-          ${this._renderStatusBar(packState)}
-        </div>
-      </ha-card>
-    `;
+            <ha-card>
+                <div class="card-content">
+                    ${this._renderPackInfo(packState)}
+                    ${this._renderReactor(packState)}
+                    ${this._renderStatusBar(packState)}
+                </div>
+            </ha-card>
+        `;
   }
   _renderPackInfo(packState) {
     return b`
@@ -1376,11 +1391,32 @@ class JkBmsReactorCardEditor extends i {
     `;
   }
   setConfig(config) {
-    this._config = config;
+    this._config = {
+      ...config,
+      pack_voltage: config.pack_voltage ?? "",
+      current: config.current ?? "",
+      soc: config.soc ?? "",
+      cells_prefix: config.cells_prefix ?? "sensor.jk_bms_cell_",
+      cells_count: config.cells_count ?? 16,
+      balance_threshold_v: config.balance_threshold_v ?? 0.01,
+      charge_threshold_a: config.charge_threshold_a ?? 0.5,
+      discharge_threshold_a: config.discharge_threshold_a ?? 0.5,
+      show_overlay: config.show_overlay ?? true,
+      show_cell_labels: config.show_cell_labels ?? true
+    };
   }
   render() {
-    if (!this.hass || !this._config) {
+    if (!this._config) {
       return b``;
+    }
+    if (!this.hass) {
+      return b`
+        <div class="card-config">
+          <div class="option">
+            <p>Loading...</p>
+          </div>
+        </div>
+      `;
     }
     const useCellsArray = Array.isArray(this._config.cells) && this._config.cells.length > 0;
     return b`

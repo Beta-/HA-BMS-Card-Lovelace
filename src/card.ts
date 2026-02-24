@@ -7,89 +7,105 @@ import { renderBalanceOverlay, renderEnergyFlow } from './balance_overlay';
 import { styles } from './styles';
 
 export class JkBmsReactorCard extends LitElement {
-    @property({ attribute: false }) public hass!: HomeAssistant;
-    @state() private _config!: JkBmsReactorCardConfig;
+  @property({ attribute: false }) public hass!: HomeAssistant;
+  @state() private _config!: JkBmsReactorCardConfig;
 
-    static get styles() {
-        return styles;
+  static get styles() {
+    return styles;
+  }
+
+  public setConfig(config: JkBmsReactorCardConfig): void {
+    if (!config) {
+      throw new Error('Invalid configuration');
     }
 
-    public setConfig(config: JkBmsReactorCardConfig): void {
-        if (!config) {
-            throw new Error('Invalid configuration');
-        }
+    // Set defaults - don't throw errors for missing entities
+    // This allows the card to render in edit mode and show placeholders
+    this._config = {
+      ...config,
+      // Apply defaults only if not provided
+      pack_voltage: config.pack_voltage ?? '',
+      current: config.current ?? '',
+      soc: config.soc ?? '',
+      cells_prefix: config.cells_prefix ?? 'sensor.jk_bms_cell_',
+      cells_count: config.cells_count ?? 16,
+      show_overlay: config.show_overlay ?? true,
+      show_cell_labels: config.show_cell_labels ?? true,
+      balance_threshold_v: config.balance_threshold_v ?? 0.01,
+      charge_threshold_a: config.charge_threshold_a ?? 0.5,
+      discharge_threshold_a: config.discharge_threshold_a ?? 0.5,
+    };
+  }
 
-        if (!config.pack_voltage) {
-            throw new Error('pack_voltage is required');
-        }
+  public getCardSize(): number {
+    return 6;
+  }
 
-        if (!config.current) {
-            throw new Error('current is required');
-        }
+  public static getConfigElement() {
+    return document.createElement('jk-bms-reactor-card-editor');
+  }
 
-        if (!config.soc) {
-            throw new Error('soc is required');
-        }
+  public static getStubConfig() {
+    return {
+      type: 'custom:jk-bms-reactor-card',
+      pack_voltage: '',
+      current: '',
+      soc: '',
+      cells_prefix: 'sensor.jk_bms_cell_',
+      cells_count: 16,
+    };
+  }
 
-        if (!config.cells && (!config.cells_prefix || !config.cells_count)) {
-            throw new Error('Either cells array or cells_prefix + cells_count is required');
-        }
+  private _getCellVoltageClass(voltage: number, minCell: number | null, maxCell: number | null): string {
+    if (voltage < 3.0) return 'low-voltage';
+    if (voltage > 3.5) return 'high-voltage';
+    return 'normal-voltage';
+  }
 
-        this._config = {
-            show_overlay: true,
-            show_cell_labels: true,
-            balance_threshold_v: 0.01,
-            charge_threshold_a: 0.5,
-            discharge_threshold_a: 0.5,
-            ...config,
-        };
+  protected render() {
+    if (!this.hass || !this._config) {
+      return html``;
     }
 
-    public getCardSize(): number {
-        return 6;
+    // Check if configuration is incomplete
+    const hasRequiredConfig = this._config.pack_voltage && this._config.current && this._config.soc;
+    const hasCellsConfig = this._config.cells || (this._config.cells_prefix && this._config.cells_count);
+
+    if (!hasRequiredConfig || !hasCellsConfig) {
+      return html`
+                <ha-card>
+                    <div class="card-content" style="padding: 24px; text-align: center;">
+                        <ha-icon icon="mdi:alert-circle-outline" style="font-size: 48px; color: var(--warning-color);"></ha-icon>
+                        <h3 style="margin: 16px 0 8px;">Configuration Required</h3>
+                        <p style="color: var(--secondary-text-color); margin: 0;">
+                            Please configure the card using the visual editor.
+                        </p>
+                        <ul style="text-align: left; display: inline-block; margin-top: 16px;">
+                            ${!this._config.pack_voltage ? html`<li>Pack Voltage entity</li>` : ''}
+                            ${!this._config.current ? html`<li>Current entity</li>` : ''}
+                            ${!this._config.soc ? html`<li>SOC entity</li>` : ''}
+                            ${!hasCellsConfig ? html`<li>Cell configuration (cells array or prefix+count)</li>` : ''}
+                        </ul>
+                    </div>
+                </ha-card>
+            `;
     }
 
-    public static getConfigElement() {
-        return document.createElement('jk-bms-reactor-card-editor');
-    }
+    const packState = computePackState(this.hass, this._config);
 
-    public static getStubConfig() {
-        return {
-            type: 'custom:jk-bms-reactor-card',
-            pack_voltage: '',
-            current: '',
-            soc: '',
-            cells_prefix: 'sensor.jk_bms_cell_',
-            cells_count: 16,
-        };
-    }
+    return html`
+            <ha-card>
+                <div class="card-content">
+                    ${this._renderPackInfo(packState)}
+                    ${this._renderReactor(packState)}
+                    ${this._renderStatusBar(packState)}
+                </div>
+            </ha-card>
+        `;
+  }
 
-    private _getCellVoltageClass(voltage: number, minCell: number | null, maxCell: number | null): string {
-        if (voltage < 3.0) return 'low-voltage';
-        if (voltage > 3.5) return 'high-voltage';
-        return 'normal-voltage';
-    }
-
-    protected render() {
-        if (!this.hass || !this._config) {
-            return html``;
-        }
-
-        const packState = computePackState(this.hass, this._config);
-
-        return html`
-      <ha-card>
-        <div class="card-content">
-          ${this._renderPackInfo(packState)}
-          ${this._renderReactor(packState)}
-          ${this._renderStatusBar(packState)}
-        </div>
-      </ha-card>
-    `;
-    }
-
-    private _renderPackInfo(packState: PackState) {
-        return html`
+  private _renderPackInfo(packState: PackState) {
+    return html`
       <div class="pack-info">
         <div class="info-item">
           <div class="info-label">Voltage</div>
@@ -140,23 +156,23 @@ export class JkBmsReactorCard extends LitElement {
         </div>
       </div>
     `;
-    }
+  }
 
-    private _renderReactor(packState: PackState) {
-        const showOverlay = this._config.show_overlay !== false;
-        const showLabels = this._config.show_cell_labels !== false;
+  private _renderReactor(packState: PackState) {
+    const showOverlay = this._config.show_overlay !== false;
+    const showLabels = this._config.show_cell_labels !== false;
 
-        return html`
+    return html`
       <div class="reactor-container">
         <div class="reactor-grid">
           ${packState.cells.map((cell, index) => {
-            const cellClass = this._getCellVoltageClass(
-                cell.voltage,
-                packState.minCell,
-                packState.maxCell
-            );
+      const cellClass = this._getCellVoltageClass(
+        cell.voltage,
+        packState.minCell,
+        packState.maxCell
+      );
 
-            return html`
+      return html`
               <div class="cell ${cellClass} ${cell.isBalancing ? 'balancing' : ''}">
                 ${showLabels ? html`<div class="cell-label">Cell ${index + 1}</div>` : ''}
                 <div class="cell-voltage">
@@ -165,68 +181,68 @@ export class JkBmsReactorCard extends LitElement {
                 </div>
               </div>
             `;
-        })}
+    })}
           
           ${showOverlay ? this._renderOverlay(packState) : ''}
         </div>
       </div>
     `;
-    }
+  }
 
-    private _renderOverlay(packState: PackState) {
-        const positions = getCellPositions(packState.cells.length);
-        const viewBox = getReactorViewBox(packState.cells.length);
+  private _renderOverlay(packState: PackState) {
+    const positions = getCellPositions(packState.cells.length);
+    const viewBox = getReactorViewBox(packState.cells.length);
 
-        // Calculate overlay positioning to match the grid
-        const gridGap = 12; // matches CSS gap
-        const cellsPerRow = 4;
+    // Calculate overlay positioning to match the grid
+    const gridGap = 12; // matches CSS gap
+    const cellsPerRow = 4;
 
-        return html`
+    return html`
       <svg class="overlay-svg" viewBox="${viewBox}" preserveAspectRatio="xMidYMid meet">
         ${renderBalanceOverlay(packState.cells, packState.isBalancing)}
         ${renderEnergyFlow(packState.isCharging, packState.isDischarging)}
       </svg>
     `;
-    }
+  }
 
-    private _renderStatusBar(packState: PackState) {
-        const badges = [];
+  private _renderStatusBar(packState: PackState) {
+    const badges = [];
 
-        if (packState.isCharging) {
-            badges.push(html`
+    if (packState.isCharging) {
+      badges.push(html`
         <div class="status-badge charging">
           <span class="status-indicator"></span>
           Charging
         </div>
       `);
-        }
+    }
 
-        if (packState.isDischarging) {
-            badges.push(html`
+    if (packState.isDischarging) {
+      badges.push(html`
         <div class="status-badge discharging">
           <span class="status-indicator"></span>
           Discharging
         </div>
       `);
-        }
+    }
 
-        if (packState.isBalancing) {
-            badges.push(html`
+    if (packState.isBalancing) {
+      badges.push(html`
         <div class="status-badge balancing">
           <span class="status-indicator"></span>
           Balancing
         </div>
       `);
-        }
+    }
 
-        if (badges.length === 0) {
-            return html``;
-        }
+    if (badges.length === 0) {
+      return html``;
+    }
 
-        return html`
+    return html`
       <div class="status-bar">
         ${badges}
       </div>
     `;
-    }
+  }
 }
