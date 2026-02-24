@@ -2391,11 +2391,26 @@ class JkBmsReactorCard extends i {
     const socGlowClass = isChargingFlow ? "charging" : isDischargingFlow ? "discharging" : "standby";
     const capacityLeftAh = packState.capacityRemainingAh ?? null ?? (this._config.capacity_total_ah !== void 0 && this._config.capacity_total_ah !== null && Number.isFinite(this._config.capacity_total_ah) ? packState.soc !== null && packState.soc !== void 0 ? this._config.capacity_total_ah * (packState.soc / 100) : null : null);
     const avgCellV = packState.cells.length ? packState.cells.reduce((sum, c2) => sum + c2.voltage, 0) / packState.cells.length : this._config.cells_count && Number.isFinite(this._config.cells_count) ? voltage / this._config.cells_count : null;
-    const canEnergy = avgCellV !== null && this._config.energy_total_kwh !== void 0 && Number.isFinite(this._config.energy_total_kwh) && this._config.energy_uvp_cell_v !== void 0 && Number.isFinite(this._config.energy_uvp_cell_v) && this._config.energy_soc100_cell_v !== void 0 && Number.isFinite(this._config.energy_soc100_cell_v) && this._config.energy_soc100_cell_v > this._config.energy_uvp_cell_v;
+    const cellsCount = packState.cells.length ? packState.cells.length : this._config.cells_count && Number.isFinite(this._config.cells_count) ? this._config.cells_count : Array.isArray(this._config.cells) ? this._config.cells.length : null;
+    const uvpCellV = this._config.energy_uvp_cell_v !== void 0 && Number.isFinite(this._config.energy_uvp_cell_v) ? this._config.energy_uvp_cell_v : this._config.pack_voltage_min !== void 0 && Number.isFinite(this._config.pack_voltage_min) && cellsCount ? this._config.pack_voltage_min / cellsCount : null;
+    const soc100CellV = this._config.energy_soc100_cell_v !== void 0 && Number.isFinite(this._config.energy_soc100_cell_v) ? this._config.energy_soc100_cell_v : this._config.pack_voltage_max !== void 0 && Number.isFinite(this._config.pack_voltage_max) && cellsCount ? this._config.pack_voltage_max / cellsCount : null;
+    const totalKwhOverride = this._config.energy_total_kwh !== void 0 && Number.isFinite(this._config.energy_total_kwh) ? this._config.energy_total_kwh : null;
+    const totalKwhAuto = this._config.capacity_total_ah !== void 0 && Number.isFinite(this._config.capacity_total_ah) ? (() => {
+      const capAh = this._config.capacity_total_ah;
+      if (this._config.pack_voltage_max !== void 0 && Number.isFinite(this._config.pack_voltage_max)) {
+        return capAh * this._config.pack_voltage_max / 1e3;
+      }
+      if (soc100CellV !== null && cellsCount) {
+        return capAh * soc100CellV * cellsCount / 1e3;
+      }
+      return null;
+    })() : null;
+    const totalKwh = totalKwhOverride ?? totalKwhAuto;
+    const canEnergy = avgCellV !== null && totalKwh !== null && uvpCellV !== null && soc100CellV !== null && soc100CellV > uvpCellV;
     const energyAvailableKwh = canEnergy ? (() => {
-      const uvp = this._config.energy_uvp_cell_v;
-      const soc100 = this._config.energy_soc100_cell_v;
-      const total = this._config.energy_total_kwh;
+      const uvp = uvpCellV;
+      const soc100 = soc100CellV;
+      const total = totalKwh;
       const t2 = (avgCellV - uvp) / (soc100 - uvp);
       const clamped = Math.max(0, Math.min(1, t2));
       return clamped * total;
@@ -2439,10 +2454,10 @@ class JkBmsReactorCard extends i {
             <div class="soc-label">%</div>
             <div class="soc-value">${formatNumber(soc, 0)}%</div>
             <div class="capacity-text">
-              ${packState.isBalancing && packState.balanceCurrent !== null ? b`${formatNumber(packState.balanceCurrent, 2)} A` : capacityLeftAh !== null ? b`${formatNumber(capacityLeftAh, 1)} Ah` : b`${formatNumber(voltage, 1)}V`}
+              ${capacityLeftAh !== null ? b`${formatNumber(capacityLeftAh, 1)} Ah` : b`${formatNumber(voltage, 1)}V`}
             </div>
             ${energyAvailableKwh !== null ? b`
-              <div class="energy-text">Energy Available: ${formatNumber(energyAvailableKwh, 1)} kWh</div>
+              <div class="energy-text">${formatNumber(energyAvailableKwh, 1)} kWh</div>
             ` : ""}
           </div>
         </div>
@@ -2528,7 +2543,7 @@ class JkBmsReactorCard extends i {
       const d2 = Math.abs(packState.delta ?? 0);
       const deltaLevel = d2 < 0.05 ? "ok" : d2 < 0.1 ? "warn" : d2 < 0.15 ? "alert" : "danger";
       const stability = d2 < 0.04 ? "stable" : d2 <= 0.1 ? "moderate" : "high";
-      const stabilityLabel = stability === "stable" ? "Stable" : stability === "moderate" ? "Normal balancing" : "High spread";
+      const stabilityLabel = stability === "stable" ? "Stable" : stability === "moderate" ? "Normal" : "High spread";
       const avgCellV2 = packState.cells.length ? packState.cells.reduce((sum, c2) => sum + c2.voltage, 0) / packState.cells.length : null;
       const kneeWindow = 6;
       const deltaHist = this._history.delta;
@@ -2729,16 +2744,16 @@ class JkBmsReactorCard extends i {
                   y2="${(flowNow == null ? void 0 : flowNow.y2) ?? yEnd}"
                 >
                   ${flowPrev && flowNow && (flowPrev.x1 !== flowNow.x1 || flowPrev.y1 !== flowNow.y1 || flowPrev.x2 !== flowNow.x2 || flowPrev.y2 !== flowNow.y2) ? w`
-                        <animate attributeName="x1" dur="260ms" fill="freeze" values="${flowPrev.x1};${flowNow.x1}"></animate>
-                        <animate attributeName="y1" dur="260ms" fill="freeze" values="${flowPrev.y1};${flowNow.y1}"></animate>
-                        <animate attributeName="x2" dur="260ms" fill="freeze" values="${flowPrev.x2};${flowNow.x2}"></animate>
-                        <animate attributeName="y2" dur="260ms" fill="freeze" values="${flowPrev.y2};${flowNow.y2}"></animate>
+                        <animate attributeName="x1" dur="420ms" fill="freeze" values="${flowPrev.x1};${flowNow.x1}" calcMode="spline" keyTimes="0;1" keySplines="0.2 0 0.2 1"></animate>
+                        <animate attributeName="y1" dur="420ms" fill="freeze" values="${flowPrev.y1};${flowNow.y1}" calcMode="spline" keyTimes="0;1" keySplines="0.2 0 0.2 1"></animate>
+                        <animate attributeName="x2" dur="420ms" fill="freeze" values="${flowPrev.x2};${flowNow.x2}" calcMode="spline" keyTimes="0;1" keySplines="0.2 0 0.2 1"></animate>
+                        <animate attributeName="y2" dur="420ms" fill="freeze" values="${flowPrev.y2};${flowNow.y2}" calcMode="spline" keyTimes="0;1" keySplines="0.2 0 0.2 1"></animate>
                       ` : ""}
                   <stop offset="0%" stop-color="${(flowNow == null ? void 0 : flowNow.c1) ?? startColor}">
-                    ${flowPrev && flowNow && flowPrev.c1 !== flowNow.c1 ? w`<animate attributeName="stop-color" dur="260ms" fill="freeze" values="${flowPrev.c1};${flowNow.c1}"></animate>` : ""}
+                    ${flowPrev && flowNow && flowPrev.c1 !== flowNow.c1 ? w`<animate attributeName="stop-color" dur="420ms" fill="freeze" values="${flowPrev.c1};${flowNow.c1}" calcMode="spline" keyTimes="0;1" keySplines="0.2 0 0.2 1"></animate>` : ""}
                   </stop>
                   <stop offset="100%" stop-color="${(flowNow == null ? void 0 : flowNow.c2) ?? endColor}">
-                    ${flowPrev && flowNow && flowPrev.c2 !== flowNow.c2 ? w`<animate attributeName="stop-color" dur="260ms" fill="freeze" values="${flowPrev.c2};${flowNow.c2}"></animate>` : ""}
+                    ${flowPrev && flowNow && flowPrev.c2 !== flowNow.c2 ? w`<animate attributeName="stop-color" dur="420ms" fill="freeze" values="${flowPrev.c2};${flowNow.c2}" calcMode="spline" keyTimes="0;1" keySplines="0.2 0 0.2 1"></animate>` : ""}
                   </stop>
                 </linearGradient>
               </defs>
@@ -2748,7 +2763,7 @@ class JkBmsReactorCard extends i {
                 d="${(flowNow == null ? void 0 : flowNow.d) ?? connectorPath()}"
                 vector-effect="non-scaling-stroke"
               >
-                ${flowPrev && flowNow && flowPrev.d !== flowNow.d ? w`<animate attributeName="d" dur="260ms" fill="freeze" values="${flowPrev.d};${flowNow.d}"></animate>` : ""}
+                ${flowPrev && flowNow && flowPrev.d !== flowNow.d ? w`<animate attributeName="d" dur="420ms" fill="freeze" values="${flowPrev.d};${flowNow.d}" calcMode="spline" keyTimes="0;1" keySplines="0.2 0 0.2 1"></animate>` : ""}
               </path>
               ${showConnector ? w`
                 <ellipse class="cell-flow-dot" rx="${this._cellFlowDotRx}" ry="${this._cellFlowDotRy}" fill="url(#cellFlowGrad-${this._uid})">
@@ -2794,7 +2809,7 @@ class JkBmsReactorCard extends i {
       badges.push(b`
         <div class="status-badge balancing">
           <span class="status-indicator"></span>
-          Balancing
+          Balancing${packState.balanceCurrent !== null ? b`&nbsp;${formatNumber(packState.balanceCurrent, 2)}A` : ""}
         </div>
       `);
     }
@@ -3195,7 +3210,7 @@ class JkBmsReactorCardEditor extends i {
         <div class="section-title">Energy (Optional)</div>
 
         <div class="option">
-          <label title="Enables the Energy Available estimate shown under SOC. This should be the pack's nominal usable energy in kWh.">Total Energy (kWh)</label>
+          <label title="Optional override. If blank, the card will estimate total kWh from Total Capacity (Ah) and Pack Voltage Max (or Cells × SOC100 cell voltage).">Total Energy Override (kWh)</label>
           <ha-textfield
             type="number"
             step="0.1"
@@ -3203,13 +3218,13 @@ class JkBmsReactorCardEditor extends i {
             .configValue=${"energy_total_kwh"}
             @input=${this._valueChanged}
             placeholder="13.4"
-            title="Used for Energy Available: available_kWh = clamp((avgCellV - UVP) / (SOC100 - UVP), 0..1) * total_kWh"
+            title="Leave blank to auto-calculate. Used for: available_kWh = clamp((avgCellV - UVP) / (SOC100 - UVP), 0..1) * total_kWh"
           ></ha-textfield>
-          <div class="description">Used to estimate "Energy Available" under SOC</div>
+          <div class="description">Leave blank to auto-calculate total kWh</div>
         </div>
 
         <div class="option">
-          <label title="Lower reference point for the energy estimate (cell-level voltage). Typically near your BMS undervoltage protection point.">UVP Cell Voltage (V)</label>
+          <label title="Lower reference point for the energy estimate (cell-level voltage). Leave blank to derive from Pack Voltage Min / cell count.">UVP Cell Voltage (V)</label>
           <ha-textfield
             type="number"
             step="0.01"
@@ -3217,12 +3232,12 @@ class JkBmsReactorCardEditor extends i {
             .configValue=${"energy_uvp_cell_v"}
             @input=${this._valueChanged}
             placeholder="2.80"
-            title="Cell-level voltage at 0% reference (UVP). Must be less than SOC 100% voltage."
+            title="Cell-level voltage at 0% reference (UVP). Must be less than SOC 100% voltage. If blank, uses Pack Voltage Min / cells."
           ></ha-textfield>
         </div>
 
         <div class="option">
-          <label title="Upper reference point for the energy estimate (cell-level voltage). This is NOT pack voltage.">SOC 100% Cell Voltage (V)</label>
+          <label title="Upper reference point for the energy estimate (cell-level voltage). Leave blank to derive from Pack Voltage Max / cell count.">SOC 100% Cell Voltage (V)</label>
           <ha-textfield
             type="number"
             step="0.01"
@@ -3230,7 +3245,7 @@ class JkBmsReactorCardEditor extends i {
             .configValue=${"energy_soc100_cell_v"}
             @input=${this._valueChanged}
             placeholder="3.45"
-            title="Cell-level voltage treated as 100% reference for the estimate. Must be greater than UVP voltage."
+            title="Cell-level voltage treated as 100% reference for the estimate. Must be greater than UVP voltage. If blank, uses Pack Voltage Max / cells."
           ></ha-textfield>
           <div class="description">Used as the upper reference for the energy estimate</div>
         </div>

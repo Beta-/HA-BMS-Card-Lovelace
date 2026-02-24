@@ -656,18 +656,59 @@ export class JkBmsReactorCard extends LitElement {
         ? voltage / (this._config.cells_count as number)
         : null);
 
+    const cellsCount = packState.cells.length
+      ? packState.cells.length
+      : (this._config.cells_count && Number.isFinite(this._config.cells_count))
+        ? (this._config.cells_count as number)
+        : Array.isArray(this._config.cells)
+          ? this._config.cells.length
+          : null;
+
+    const uvpCellV = (this._config.energy_uvp_cell_v !== undefined && Number.isFinite(this._config.energy_uvp_cell_v))
+      ? (this._config.energy_uvp_cell_v as number)
+      : (this._config.pack_voltage_min !== undefined && Number.isFinite(this._config.pack_voltage_min) && cellsCount)
+        ? (this._config.pack_voltage_min as number) / (cellsCount as number)
+        : null;
+
+    const soc100CellV = (this._config.energy_soc100_cell_v !== undefined && Number.isFinite(this._config.energy_soc100_cell_v))
+      ? (this._config.energy_soc100_cell_v as number)
+      : (this._config.pack_voltage_max !== undefined && Number.isFinite(this._config.pack_voltage_max) && cellsCount)
+        ? (this._config.pack_voltage_max as number) / (cellsCount as number)
+        : null;
+
+    const totalKwhOverride = (this._config.energy_total_kwh !== undefined && Number.isFinite(this._config.energy_total_kwh))
+      ? (this._config.energy_total_kwh as number)
+      : null;
+
+    const totalKwhAuto = (this._config.capacity_total_ah !== undefined && Number.isFinite(this._config.capacity_total_ah))
+      ? (() => {
+        const capAh = this._config.capacity_total_ah as number;
+        // Prefer pack_voltage_max as a pack-level reference if present.
+        if (this._config.pack_voltage_max !== undefined && Number.isFinite(this._config.pack_voltage_max)) {
+          return (capAh * (this._config.pack_voltage_max as number)) / 1000;
+        }
+        // Otherwise derive pack max voltage from per-cell SOC100 voltage.
+        if (soc100CellV !== null && cellsCount) {
+          return (capAh * (soc100CellV as number) * (cellsCount as number)) / 1000;
+        }
+        return null;
+      })()
+      : null;
+
+    const totalKwh = totalKwhOverride ?? totalKwhAuto;
+
     const canEnergy =
       avgCellV !== null &&
-      this._config.energy_total_kwh !== undefined && Number.isFinite(this._config.energy_total_kwh) &&
-      this._config.energy_uvp_cell_v !== undefined && Number.isFinite(this._config.energy_uvp_cell_v) &&
-      this._config.energy_soc100_cell_v !== undefined && Number.isFinite(this._config.energy_soc100_cell_v) &&
-      (this._config.energy_soc100_cell_v as number) > (this._config.energy_uvp_cell_v as number);
+      totalKwh !== null &&
+      uvpCellV !== null &&
+      soc100CellV !== null &&
+      (soc100CellV as number) > (uvpCellV as number);
 
     const energyAvailableKwh = canEnergy
       ? (() => {
-        const uvp = this._config.energy_uvp_cell_v as number;
-        const soc100 = this._config.energy_soc100_cell_v as number;
-        const total = this._config.energy_total_kwh as number;
+        const uvp = uvpCellV as number;
+        const soc100 = soc100CellV as number;
+        const total = totalKwh as number;
         const t = ((avgCellV as number) - uvp) / (soc100 - uvp);
         const clamped = Math.max(0, Math.min(1, t));
         return clamped * total;
@@ -713,14 +754,12 @@ export class JkBmsReactorCard extends LitElement {
             <div class="soc-label">%</div>
             <div class="soc-value">${formatNumber(soc, 0)}%</div>
             <div class="capacity-text">
-              ${packState.isBalancing && packState.balanceCurrent !== null
-        ? html`${formatNumber(packState.balanceCurrent, 2)} A`
-        : capacityLeftAh !== null
-          ? html`${formatNumber(capacityLeftAh, 1)} Ah`
-          : html`${formatNumber(voltage, 1)}V`}
+              ${capacityLeftAh !== null
+        ? html`${formatNumber(capacityLeftAh, 1)} Ah`
+        : html`${formatNumber(voltage, 1)}V`}
             </div>
             ${energyAvailableKwh !== null ? html`
-              <div class="energy-text">Energy Available: ${formatNumber(energyAvailableKwh, 1)} kWh</div>
+              <div class="energy-text">${formatNumber(energyAvailableKwh, 1)} kWh</div>
             ` : ''}
           </div>
         </div>
@@ -781,9 +820,9 @@ export class JkBmsReactorCard extends LitElement {
         <div class="stat-panel stat-voltage">
           <svg class="stat-sparkline-svg" viewBox="0 0 100 30" preserveAspectRatio="none" aria-hidden="true">
             <polyline class="sparkline voltage" points="${this._sparklinePoints(this._history.voltage, 100, 30, {
-            min: this._config.pack_voltage_min,
-            max: this._config.pack_voltage_max,
-          })}"></polyline>
+          min: this._config.pack_voltage_min,
+          max: this._config.pack_voltage_max,
+        })}"></polyline>
           </svg>
           <div class="stat-label">Voltage</div>
           <div class="stat-value">${formatNumber(packState.voltage, 2)} V</div>
@@ -810,7 +849,7 @@ export class JkBmsReactorCard extends LitElement {
         const stabilityLabel = stability === 'stable'
           ? 'Stable'
           : stability === 'moderate'
-            ? 'Normal balancing'
+            ? 'Normal'
             : 'High spread';
 
         const avgCellV = packState.cells.length
@@ -1057,20 +1096,20 @@ export class JkBmsReactorCard extends LitElement {
                 >
                   ${flowPrev && flowNow && (flowPrev.x1 !== flowNow.x1 || flowPrev.y1 !== flowNow.y1 || flowPrev.x2 !== flowNow.x2 || flowPrev.y2 !== flowNow.y2)
         ? svg`
-                        <animate attributeName="x1" dur="260ms" fill="freeze" values="${flowPrev.x1};${flowNow.x1}"></animate>
-                        <animate attributeName="y1" dur="260ms" fill="freeze" values="${flowPrev.y1};${flowNow.y1}"></animate>
-                        <animate attributeName="x2" dur="260ms" fill="freeze" values="${flowPrev.x2};${flowNow.x2}"></animate>
-                        <animate attributeName="y2" dur="260ms" fill="freeze" values="${flowPrev.y2};${flowNow.y2}"></animate>
+                        <animate attributeName="x1" dur="420ms" fill="freeze" values="${flowPrev.x1};${flowNow.x1}" calcMode="spline" keyTimes="0;1" keySplines="0.2 0 0.2 1"></animate>
+                        <animate attributeName="y1" dur="420ms" fill="freeze" values="${flowPrev.y1};${flowNow.y1}" calcMode="spline" keyTimes="0;1" keySplines="0.2 0 0.2 1"></animate>
+                        <animate attributeName="x2" dur="420ms" fill="freeze" values="${flowPrev.x2};${flowNow.x2}" calcMode="spline" keyTimes="0;1" keySplines="0.2 0 0.2 1"></animate>
+                        <animate attributeName="y2" dur="420ms" fill="freeze" values="${flowPrev.y2};${flowNow.y2}" calcMode="spline" keyTimes="0;1" keySplines="0.2 0 0.2 1"></animate>
                       `
         : ''}
                   <stop offset="0%" stop-color="${flowNow?.c1 ?? startColor}">
                     ${flowPrev && flowNow && flowPrev.c1 !== flowNow.c1
-        ? svg`<animate attributeName="stop-color" dur="260ms" fill="freeze" values="${flowPrev.c1};${flowNow.c1}"></animate>`
+        ? svg`<animate attributeName="stop-color" dur="420ms" fill="freeze" values="${flowPrev.c1};${flowNow.c1}" calcMode="spline" keyTimes="0;1" keySplines="0.2 0 0.2 1"></animate>`
         : ''}
                   </stop>
                   <stop offset="100%" stop-color="${flowNow?.c2 ?? endColor}">
                     ${flowPrev && flowNow && flowPrev.c2 !== flowNow.c2
-        ? svg`<animate attributeName="stop-color" dur="260ms" fill="freeze" values="${flowPrev.c2};${flowNow.c2}"></animate>`
+        ? svg`<animate attributeName="stop-color" dur="420ms" fill="freeze" values="${flowPrev.c2};${flowNow.c2}" calcMode="spline" keyTimes="0;1" keySplines="0.2 0 0.2 1"></animate>`
         : ''}
                   </stop>
                 </linearGradient>
@@ -1082,7 +1121,7 @@ export class JkBmsReactorCard extends LitElement {
                 vector-effect="non-scaling-stroke"
               >
                 ${flowPrev && flowNow && flowPrev.d !== flowNow.d
-        ? svg`<animate attributeName="d" dur="260ms" fill="freeze" values="${flowPrev.d};${flowNow.d}"></animate>`
+        ? svg`<animate attributeName="d" dur="420ms" fill="freeze" values="${flowPrev.d};${flowNow.d}" calcMode="spline" keyTimes="0;1" keySplines="0.2 0 0.2 1"></animate>`
         : ''}
               </path>
               ${showConnector ? svg`
@@ -1135,7 +1174,7 @@ export class JkBmsReactorCard extends LitElement {
       badges.push(html`
         <div class="status-badge balancing">
           <span class="status-indicator"></span>
-          Balancing
+          Balancing${packState.balanceCurrent !== null ? html`&nbsp;${formatNumber(packState.balanceCurrent, 2)}A` : ''}
         </div>
       `);
     }

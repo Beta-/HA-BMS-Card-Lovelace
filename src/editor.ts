@@ -354,7 +354,7 @@ export class JkBmsReactorCardEditor extends LitElement {
         <div class="section-title">Energy (Optional)</div>
 
         <div class="option">
-          <label title="Enables the Energy Available estimate shown under SOC. This should be the pack's nominal usable energy in kWh.">Total Energy (kWh)</label>
+          <label title="Optional override. If blank, the card will estimate total kWh from Total Capacity (Ah) and Pack Voltage Max (or Cells × SOC100 cell voltage).">Total Energy Override (kWh)</label>
           <ha-textfield
             type="number"
             step="0.1"
@@ -362,13 +362,13 @@ export class JkBmsReactorCardEditor extends LitElement {
             .configValue=${'energy_total_kwh'}
             @input=${this._valueChanged}
             placeholder="13.4"
-            title="Used for Energy Available: available_kWh = clamp((avgCellV - UVP) / (SOC100 - UVP), 0..1) * total_kWh"
+            title="Leave blank to auto-calculate. Used for: available_kWh = clamp((avgCellV - UVP) / (SOC100 - UVP), 0..1) * total_kWh"
           ></ha-textfield>
-          <div class="description">Used to estimate "Energy Available" under SOC</div>
+          <div class="description">Leave blank to auto-calculate total kWh</div>
         </div>
 
         <div class="option">
-          <label title="Lower reference point for the energy estimate (cell-level voltage). Typically near your BMS undervoltage protection point.">UVP Cell Voltage (V)</label>
+          <label title="Lower reference point for the energy estimate (cell-level voltage). Leave blank to derive from Pack Voltage Min / cell count.">UVP Cell Voltage (V)</label>
           <ha-textfield
             type="number"
             step="0.01"
@@ -376,12 +376,12 @@ export class JkBmsReactorCardEditor extends LitElement {
             .configValue=${'energy_uvp_cell_v'}
             @input=${this._valueChanged}
             placeholder="2.80"
-            title="Cell-level voltage at 0% reference (UVP). Must be less than SOC 100% voltage."
+            title="Cell-level voltage at 0% reference (UVP). Must be less than SOC 100% voltage. If blank, uses Pack Voltage Min / cells."
           ></ha-textfield>
         </div>
 
         <div class="option">
-          <label title="Upper reference point for the energy estimate (cell-level voltage). This is NOT pack voltage.">SOC 100% Cell Voltage (V)</label>
+          <label title="Upper reference point for the energy estimate (cell-level voltage). Leave blank to derive from Pack Voltage Max / cell count.">SOC 100% Cell Voltage (V)</label>
           <ha-textfield
             type="number"
             step="0.01"
@@ -389,7 +389,7 @@ export class JkBmsReactorCardEditor extends LitElement {
             .configValue=${'energy_soc100_cell_v'}
             @input=${this._valueChanged}
             placeholder="3.45"
-            title="Cell-level voltage treated as 100% reference for the estimate. Must be greater than UVP voltage."
+            title="Cell-level voltage treated as 100% reference for the estimate. Must be greater than UVP voltage. If blank, uses Pack Voltage Max / cells."
           ></ha-textfield>
           <div class="description">Used as the upper reference for the energy estimate</div>
         </div>

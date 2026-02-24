@@ -63,6 +63,8 @@ export interface JkBmsReactorCardConfig {
     capacity_total_ah?: number;
 
     // Optional energy estimate under SOC
+    // If not provided, total kWh can be derived from capacity_total_ah and pack_voltage_max.
+    // If per-cell UVP/SOC100 voltages are not provided, they can be derived from pack_voltage_min/max and cell count.
     energy_total_kwh?: number;
     energy_uvp_cell_v?: number;
     energy_soc100_cell_v?: number;
