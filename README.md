@@ -39,9 +39,24 @@ A beautiful, reactor-style Lovelace custom card for visualizing JK BMS battery p
 4. **Clear browser cache**:
    - Hard refresh: `Ctrl+F5` (Windows/Linux) or `Cmd+Shift+R` (Mac)
 
-### HACS Installation (Coming Soon)
+### HACS Installation
 
-This card will be available through HACS in the future.
+1. **Add custom repository**:
+   - Open HACS in Home Assistant
+   - Go to **Frontend**
+   - Click the **3-dot menu** (top right) → **Custom repositories**
+   - Add repository URL: `https://github.com/yourusername/jk-bms-reactor-card`
+   - Category: **Lovelace**
+   - Click **Add**
+
+2. **Install the card**:
+   - Find "JK BMS Reactor Card" in HACS
+   - Click **Download**
+   - Restart Home Assistant (if required)
+   
+3. **Add to Lovelace**:
+   - The resource is automatically added by HACS
+   - Add the card to your dashboard using the configuration examples below
 
 ## Configuration
 

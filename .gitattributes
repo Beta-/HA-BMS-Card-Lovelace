@@ -1,0 +1,5 @@
+# Ensure consistent line endings
+* text=auto
+
+# Treat JavaScript files as binary to avoid merge conflicts in dist
+dist/*.js binary
