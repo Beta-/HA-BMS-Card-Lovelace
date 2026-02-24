@@ -13,6 +13,9 @@ export class JkBmsReactorCard extends LitElement {
 
   private _resizeObserver?: ResizeObserver;
 
+  @state() private _copyHint: string | null = null;
+  private _copyHintTimer?: number;
+
   private _uid = Math.random().toString(36).slice(2, 9);
 
   private _history = {
@@ -45,6 +48,104 @@ export class JkBmsReactorCard extends LitElement {
     super.disconnectedCallback();
     this._resizeObserver?.disconnect();
     this._resizeObserver = undefined;
+
+    if (this._copyHintTimer) {
+      window.clearTimeout(this._copyHintTimer);
+      this._copyHintTimer = undefined;
+    }
+  }
+
+  private _setCopyHint(msg: string | null) {
+    this._copyHint = msg;
+    if (this._copyHintTimer) window.clearTimeout(this._copyHintTimer);
+    if (msg) {
+      this._copyHintTimer = window.setTimeout(() => {
+        this._copyHint = null;
+        this._copyHintTimer = undefined;
+      }, 1400);
+    }
+  }
+
+  private async _writeClipboard(text: string): Promise<boolean> {
+    try {
+      await navigator.clipboard.writeText(text);
+      return true;
+    } catch {
+      // Fallback for environments where Clipboard API is unavailable/blocked.
+      try {
+        const ta = document.createElement('textarea');
+        ta.value = text;
+        ta.setAttribute('readonly', 'true');
+        ta.style.position = 'fixed';
+        ta.style.top = '-1000px';
+        ta.style.left = '-1000px';
+        document.body.appendChild(ta);
+        ta.select();
+        const ok = document.execCommand('copy');
+        document.body.removeChild(ta);
+        return ok;
+      } catch {
+        return false;
+      }
+    }
+  }
+
+  private _formatSnapshot(packState: PackState): string {
+    const now = new Date();
+    const voltage = packState.voltage;
+    const current = packState.current;
+    const power = (voltage ?? 0) * (current ?? 0);
+
+    const delta = packState.delta;
+    const minV = packState.minCell;
+    const maxV = packState.maxCell;
+
+    const eps = 0.0005;
+    const minIdx = (minV === null) ? [] : packState.cells
+      .filter(c => Math.abs(c.voltage - minV) <= eps)
+      .map(c => c.index + 1);
+    const maxIdx = (maxV === null) ? [] : packState.cells
+      .filter(c => Math.abs(c.voltage - maxV) <= eps)
+      .map(c => c.index + 1);
+
+    const cellsCsv = packState.cells
+      .slice()
+      .sort((a, b) => a.index - b.index)
+      .map(c => formatNumber(c.voltage, 3))
+      .join(',');
+
+    const cellLines = packState.cells
+      .slice()
+      .sort((a, b) => a.index - b.index)
+      .map(c => `Cell ${c.index + 1}: ${formatNumber(c.voltage, 3)} V${c.isBalancing ? ' (balancing)' : ''}`)
+      .join('\n');
+
+    const sign = power >= 0 ? '+' : '';
+    return [
+      `JK BMS Snapshot (${now.toISOString()})`,
+      `Pack Voltage: ${formatNumber(voltage, 2)} V`,
+      `Current: ${formatNumber(current, 2)} A`,
+      `Power: ${sign}${formatNumber(power, 1)} W (abs ${formatNumber(Math.abs(power), 1)} W)`,
+      `SOC: ${formatNumber(packState.soc, 0)} %`,
+      `Delta: ${formatNumber(delta, 3)} V`,
+      `Min Cell: ${formatNumber(minV, 3)} V${minIdx.length ? ` (cells ${minIdx.join(', ')})` : ''}`,
+      `Max Cell: ${formatNumber(maxV, 3)} V${maxIdx.length ? ` (cells ${maxIdx.join(', ')})` : ''}`,
+      packState.isBalancing && packState.balanceCurrent !== null
+        ? `Balance Current: ${formatNumber(packState.balanceCurrent, 2)} A`
+        : `Balance Current: -`,
+      '',
+      `Cells CSV (V): ${cellsCsv}`,
+      '',
+      'Cells:',
+      cellLines,
+      '',
+    ].join('\n');
+  }
+
+  private async _copySnapshot(packState: PackState) {
+    const text = this._formatSnapshot(packState);
+    const ok = await this._writeClipboard(text);
+    this._setCopyHint(ok ? 'Copied' : 'Copy failed');
   }
 
   private _updateCellFlowDotRadii(desiredPxRadius = 4) {
@@ -184,6 +285,10 @@ export class JkBmsReactorCard extends LitElement {
 
   protected updated(changedProperties: Map<string, unknown>) {
     super.updated(changedProperties);
+
+    // Keep the balancing connector dot round even when the SVG appears later
+    // (e.g. when balancing starts) or when layout changes.
+    this._updateCellFlowDotRadii(4.5);
 
     if (!changedProperties.has('hass')) return;
     if (!this.hass || !this._config) return;
@@ -603,7 +708,11 @@ export class JkBmsReactorCard extends LitElement {
           <div class="stat-label">Power</div>
           <div class="stat-value">${formatNumber(Math.abs((packState.voltage ?? 0) * (packState.current ?? 0)), 1)} W</div>
         </div>
-        <div class="stat-panel stat-delta delta-minmax-panel">
+        ${(() => {
+        const d = Math.abs(packState.delta ?? 0);
+        const deltaLevel = d < 0.05 ? 'ok' : d < 0.1 ? 'warn' : d < 0.15 ? 'alert' : 'danger';
+        return html`
+        <div class="stat-panel stat-delta delta-minmax-panel delta-${deltaLevel}">
           <div class="delta-minmax-container">
             <div class="delta-left">
               <svg class="delta-sparkline-svg" viewBox="0 0 100 30" preserveAspectRatio="none" aria-hidden="true">
@@ -625,7 +734,8 @@ export class JkBmsReactorCard extends LitElement {
               </div>
             </div>
           </div>
-        </div>
+        </div>`;
+      })()}
 
         ${this._config.mos_temp ? html`
           <div class="stat-panel stat-mos-temp">
@@ -723,8 +833,30 @@ export class JkBmsReactorCard extends LitElement {
 
     const cellTemplate = (cell: any, originalIndex: number) => {
       const cellClass = this._getCellVoltageClass(cell.voltage, packState.minCell, packState.maxCell);
+
+      const minV = packState.minCell;
+      const maxV = packState.maxCell;
+      const span = (minV !== null && maxV !== null) ? (maxV - minV) : 0;
+      const ratioRaw = span > 0 ? (cell.voltage - (minV as number)) / span : 0.5;
+      const ratio = Math.max(0, Math.min(1, ratioRaw));
+
+      const eps = 0.0005;
+      const isMin = minV !== null && Math.abs(cell.voltage - minV) <= eps;
+      const isMax = maxV !== null && Math.abs(cell.voltage - maxV) <= eps;
+
       return html`
         <div class="cell ${cellClass} ${cell.isBalancing ? `balancing${cell.balanceDirection ? ` balancing-${cell.balanceDirection}` : ''}` : ''}">
+          ${isMin ? html`
+            <div class="cell-extreme min" title="Min cell">
+              <ha-icon icon="mdi:arrow-down-bold"></ha-icon>
+            </div>
+          ` : ''}
+          ${isMax ? html`
+            <div class="cell-extreme max" title="Max cell">
+              <ha-icon icon="mdi:arrow-up-bold"></ha-icon>
+            </div>
+          ` : ''}
+
           ${compact ? html`
             <div class="cell-compact-row">
               <span class="cell-index">${originalIndex + 1}:</span>
@@ -737,6 +869,10 @@ export class JkBmsReactorCard extends LitElement {
               <span class="cell-voltage-unit">V</span>
             </div>
           `}
+
+          <div class="cell-bar" aria-hidden="true">
+            <div class="cell-bar-fill" style="width: ${(ratio * 100).toFixed(1)}%;"></div>
+          </div>
           ${cell.isBalancing ? html`<div class="balancing-indicator"></div>` : ''}
         </div>
       `;
@@ -829,12 +965,23 @@ export class JkBmsReactorCard extends LitElement {
     }
 
     if (badges.length === 0) {
-      return html``;
+      badges.push(html`
+        <div class="status-badge standby">
+          <span class="status-indicator"></span>
+          Standby
+        </div>
+      `);
     }
 
     return html`
       <div class="status-bar">
-        ${badges}
+        <div class="status-left">${badges}</div>
+        <div class="status-actions">
+          ${this._copyHint ? html`<div class="copy-hint">${this._copyHint}</div>` : ''}
+          <button class="copy-btn" @click=${() => this._copySnapshot(packState)} title="Copy pack + cell snapshot">
+            <ha-icon icon="mdi:content-copy"></ha-icon>
+          </button>
+        </div>
       </div>
     `;
   }

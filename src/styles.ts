@@ -395,6 +395,73 @@ export const styles = css`
     grid-column: span 2;
   }
 
+  .stat-panel.stat-delta {
+    isolation: isolate;
+  }
+
+  .stat-panel.stat-delta::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(135deg, rgba(65, 205, 82, 0.06), rgba(65, 205, 82, 0.02));
+    opacity: 0.55;
+    z-index: 0;
+    pointer-events: none;
+    transform: translateZ(0);
+    animation: delta-bg-shift 6s ease-in-out infinite;
+  }
+
+  .stat-panel.stat-delta .delta-sparkline-svg .sparkline.delta {
+    stroke: rgba(65, 205, 82, 0.45);
+  }
+
+  .stat-panel.stat-delta.delta-warn {
+    box-shadow: 0 0 18px rgba(255, 211, 15, 0.18);
+    border-color: rgba(255, 211, 15, 0.25);
+  }
+  .stat-panel.stat-delta.delta-warn::after {
+    background: linear-gradient(135deg, rgba(255, 211, 15, 0.08), rgba(255, 211, 15, 0.02));
+  }
+  .stat-panel.stat-delta.delta-warn .delta-sparkline-svg .sparkline.delta {
+    stroke: rgba(255, 211, 15, 0.55);
+  }
+
+  .stat-panel.stat-delta.delta-alert {
+    box-shadow: 0 0 18px rgba(255, 146, 43, 0.20);
+    border-color: rgba(255, 146, 43, 0.30);
+  }
+  .stat-panel.stat-delta.delta-alert::after {
+    background: linear-gradient(135deg, rgba(255, 146, 43, 0.10), rgba(255, 146, 43, 0.03));
+  }
+  .stat-panel.stat-delta.delta-alert .delta-sparkline-svg .sparkline.delta {
+    stroke: rgba(255, 146, 43, 0.60);
+  }
+
+  .stat-panel.stat-delta.delta-danger {
+    border-color: rgba(255, 80, 80, 0.45);
+    animation: delta-danger-pulse 1.4s ease-in-out infinite;
+  }
+  .stat-panel.stat-delta.delta-danger::after {
+    background: linear-gradient(135deg, rgba(255, 80, 80, 0.14), rgba(255, 80, 80, 0.03));
+  }
+  .stat-panel.stat-delta.delta-danger .delta-sparkline-svg .sparkline.delta {
+    stroke: rgba(255, 80, 80, 0.70);
+  }
+
+  @keyframes delta-bg-shift {
+    0%, 100% { transform: translateX(0%); }
+    50% { transform: translateX(6%); }
+  }
+
+  @keyframes delta-danger-pulse {
+    0%, 100% {
+      box-shadow: 0 0 10px rgba(255, 80, 80, 0.18);
+    }
+    50% {
+      box-shadow: 0 0 22px rgba(255, 80, 80, 0.32);
+    }
+  }
+
   .temps-grid {
     display: grid;
     grid-template-columns: repeat(2, 1fr);
@@ -642,6 +709,72 @@ export const styles = css`
     overflow: hidden;
   }
 
+  .cell-extreme {
+    position: absolute;
+    top: 6px;
+    left: 6px;
+    width: 18px;
+    height: 18px;
+    border-radius: 9px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(0, 0, 0, 0.18);
+    border: 1px solid rgba(255, 255, 255, 0.10);
+    backdrop-filter: blur(2px);
+    z-index: 2;
+  }
+
+  .cell-extreme ha-icon {
+    --mdc-icon-size: 12px;
+    opacity: 0.9;
+  }
+
+  .cell-extreme.min {
+    color: var(--min-cell-color);
+  }
+
+  .cell-extreme.max {
+    left: auto;
+    right: 6px;
+    color: var(--max-cell-color);
+  }
+
+  .cell-bar {
+    position: absolute;
+    left: 10px;
+    right: 10px;
+    bottom: 10px;
+    height: 6px;
+    border-radius: 6px;
+    background: rgba(255, 255, 255, 0.08);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    overflow: hidden;
+  }
+
+  .cell-bar-fill {
+    height: 100%;
+    border-radius: 6px;
+    background: linear-gradient(90deg, rgba(255, 255, 255, 0.20), rgba(255, 255, 255, 0.42));
+    box-shadow: 0 0 10px rgba(255, 255, 255, 0.10);
+    transition: width 300ms ease;
+  }
+
+  .reactor-grid.compact .cell-bar {
+    left: 8px;
+    right: 8px;
+    bottom: 6px;
+    height: 4px;
+    opacity: 0.9;
+  }
+
+  .reactor-grid.compact .cell-extreme {
+    top: 4px;
+    width: 16px;
+    height: 16px;
+    border-radius: 8px;
+  }
+
   .cell.balancing-discharging {
     border-color: var(--balance-discharge-color);
     animation: cell-balance-pulse 2s ease-in-out infinite;
@@ -797,7 +930,57 @@ export const styles = css`
     gap: 8px;
     margin-top: 12px;
     flex-wrap: wrap;
+    justify-content: space-between;
+    align-items: center;
+  }
+
+  .status-left {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
     justify-content: center;
+    flex: 1;
+  }
+
+  .status-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    justify-content: flex-end;
+  }
+
+  .copy-btn {
+    width: 38px;
+    height: 38px;
+    border-radius: 12px;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    background: rgba(255, 255, 255, 0.06);
+    color: var(--primary-text-color);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: transform 120ms ease, background 120ms ease, border-color 120ms ease;
+  }
+
+  .copy-btn:hover {
+    transform: translateY(-1px);
+    background: rgba(255, 255, 255, 0.09);
+    border-color: rgba(255, 255, 255, 0.18);
+  }
+
+  .copy-btn ha-icon {
+    --mdc-icon-size: 20px;
+    opacity: 0.95;
+  }
+
+  .copy-hint {
+    font-size: 12px;
+    color: var(--secondary-text-color);
+    padding: 6px 10px;
+    border-radius: 999px;
+    background: rgba(0, 0, 0, 0.18);
+    border: 1px solid rgba(255, 255, 255, 0.10);
   }
 
   .status-badge {
@@ -826,6 +1009,12 @@ export const styles = css`
     background: rgba(255, 99, 51, 0.15);
     color: var(--balancing-color);
     border: 1px solid var(--balancing-color);
+  }
+
+  .status-badge.standby {
+    background: rgba(180, 180, 180, 0.10);
+    color: var(--standby-color);
+    border: 1px solid rgba(180, 180, 180, 0.35);
   }
 
   .status-indicator {
