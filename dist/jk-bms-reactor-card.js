@@ -954,19 +954,22 @@ const styles = i$3`
   }
 
   .reactor-ring.tint-details.charging .soc-label,
-  .reactor-ring.tint-details.charging .capacity-text {
+  .reactor-ring.tint-details.charging .capacity-text,
+  .reactor-ring.tint-details.charging .usage-time-text {
     color: var(--accent-color);
     text-shadow: 0 0 8px var(--flow-in-glow);
   }
 
   .reactor-ring.tint-details.discharging .soc-label,
-  .reactor-ring.tint-details.discharging .capacity-text {
+  .reactor-ring.tint-details.discharging .capacity-text,
+  .reactor-ring.tint-details.discharging .usage-time-text {
     color: var(--discharge-color);
     text-shadow: 0 0 8px var(--flow-out-glow);
   }
 
   .reactor-ring.tint-details.standby .soc-label,
-  .reactor-ring.tint-details.standby .capacity-text {
+  .reactor-ring.tint-details.standby .capacity-text,
+  .reactor-ring.tint-details.standby .usage-time-text {
     color: var(--standby-color);
     text-shadow: 0 0 6px var(--standby-glow);
   }
@@ -983,6 +986,15 @@ const styles = i$3`
     margin-top: 4px;
     opacity: 0.95;
     text-align: center;
+  }
+
+  .usage-time-text {
+    font-size: 0.78em;
+    color: var(--secondary-text-color);
+    margin-top: 4px;
+    opacity: 0.95;
+    text-align: center;
+    letter-spacing: 0.02em;
   }
 
   /* SVG Flow Lines */
@@ -2587,6 +2599,42 @@ class JkBmsReactorCard extends i {
       const clamped = Math.max(0, Math.min(1, t2));
       return clamped * total;
     })() : null;
+    const usageTimeHm = (() => {
+      const toHm = (hours) => {
+        if (hours === null || !Number.isFinite(hours) || hours <= 0) return null;
+        const totalMinutes = Math.floor(hours * 60);
+        const hh = Math.floor(totalMinutes / 60);
+        const mm = totalMinutes % 60;
+        return `${String(hh).padStart(2, "0")}:${String(mm).padStart(2, "0")}`;
+      };
+      if (isDischargingFlow) {
+        const dischargePowerW = Math.max(-(voltage * current), 0);
+        const dischargeCurrentA = Math.max(-current, 0);
+        if (energyAvailableKwh !== null && dischargePowerW >= 5) {
+          return toHm(energyAvailableKwh * 1e3 / dischargePowerW);
+        }
+        if (capacityLeftAh !== null && dischargeCurrentA >= 0.1) {
+          return toHm(capacityLeftAh / dischargeCurrentA);
+        }
+        return null;
+      }
+      if (isChargingFlow) {
+        const chargePowerW = Math.max(voltage * current, 0);
+        const chargeCurrentA = Math.max(current, 0);
+        if (totalKwh !== null && energyAvailableKwh !== null && chargePowerW >= 5) {
+          const kwhToFull = Math.max(0, totalKwh - energyAvailableKwh);
+          return toHm(kwhToFull * 1e3 / chargePowerW);
+        }
+        if (this._config.capacity_total_ah !== void 0 && Number.isFinite(this._config.capacity_total_ah) && capacityLeftAh !== null && chargeCurrentA >= 0.1) {
+          const capTotal = this._config.capacity_total_ah;
+          const ahToFull = Math.max(0, capTotal - capacityLeftAh);
+          return toHm(ahToFull / chargeCurrentA);
+        }
+        return null;
+      }
+      return null;
+    })();
+    const usageTimeDisplay = usageTimeHm ?? "--:--";
     return b`
       <div class="flow-section">
         <!-- Charger Node -->
@@ -2596,11 +2644,6 @@ class JkBmsReactorCard extends i {
             <ha-icon icon="mdi:power-plug-outline"></ha-icon>
           </div>
           <div class="node-label">Charge</div>
-          ${packState.isCharging ? b`
-            <div class="node-status">
-              <span class="status-on">ON</span>
-            </div>
-          ` : ""}
           ${chargeCurrent > 0 ? b`
             <div class="node-current">${formatNumber(chargeCurrent, 1)} A</div>
           ` : ""}
@@ -2628,6 +2671,7 @@ class JkBmsReactorCard extends i {
             <div class="capacity-text">
               ${capacityLeftAh !== null ? b`${formatNumber(capacityLeftAh, 1)} Ah` : b`${formatNumber(voltage, 1)}V`}
             </div>
+            <div class="usage-time-text">${usageTimeDisplay}</div>
             ${energyAvailableKwh !== null ? b`
               <div class="energy-text">${formatNumber(energyAvailableKwh, 1)} kWh</div>
             ` : ""}
@@ -2641,11 +2685,6 @@ class JkBmsReactorCard extends i {
             <ha-icon icon="mdi:power-socket"></ha-icon>
           </div>
           <div class="node-label">Load</div>
-          ${packState.isDischarging ? b`
-            <div class="node-status">
-              <span class="status-on">ON</span>
-            </div>
-          ` : ""}
           ${dischargeCurrent > 0 ? b`
             <div class="node-current">${formatNumber(dischargeCurrent, 1)} A</div>
           ` : ""}

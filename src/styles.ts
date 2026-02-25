@@ -241,19 +241,22 @@ export const styles = css`
   }
 
   .reactor-ring.tint-details.charging .soc-label,
-  .reactor-ring.tint-details.charging .capacity-text {
+  .reactor-ring.tint-details.charging .capacity-text,
+  .reactor-ring.tint-details.charging .usage-time-text {
     color: var(--accent-color);
     text-shadow: 0 0 8px var(--flow-in-glow);
   }
 
   .reactor-ring.tint-details.discharging .soc-label,
-  .reactor-ring.tint-details.discharging .capacity-text {
+  .reactor-ring.tint-details.discharging .capacity-text,
+  .reactor-ring.tint-details.discharging .usage-time-text {
     color: var(--discharge-color);
     text-shadow: 0 0 8px var(--flow-out-glow);
   }
 
   .reactor-ring.tint-details.standby .soc-label,
-  .reactor-ring.tint-details.standby .capacity-text {
+  .reactor-ring.tint-details.standby .capacity-text,
+  .reactor-ring.tint-details.standby .usage-time-text {
     color: var(--standby-color);
     text-shadow: 0 0 6px var(--standby-glow);
   }
@@ -270,6 +273,15 @@ export const styles = css`
     margin-top: 4px;
     opacity: 0.95;
     text-align: center;
+  }
+
+  .usage-time-text {
+    font-size: 0.78em;
+    color: var(--secondary-text-color);
+    margin-top: 4px;
+    opacity: 0.95;
+    text-align: center;
+    letter-spacing: 0.02em;
   }
 
   /* SVG Flow Lines */

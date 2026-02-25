@@ -884,6 +884,54 @@ export class JkBmsReactorCard extends LitElement {
       })()
       : null;
 
+    const usageTimeHm = (() => {
+      const toHm = (hours: number | null): string | null => {
+        if (hours === null || !Number.isFinite(hours) || hours <= 0) return null;
+        const totalMinutes = Math.floor(hours * 60);
+        const hh = Math.floor(totalMinutes / 60);
+        const mm = totalMinutes % 60;
+        return `${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}`;
+      };
+
+      // Discharging: time remaining at current draw
+      if (isDischargingFlow) {
+        const dischargePowerW = Math.max(-(voltage * current), 0);
+        const dischargeCurrentA = Math.max(-current, 0);
+
+        if (energyAvailableKwh !== null && dischargePowerW >= 5) {
+          return toHm((energyAvailableKwh * 1000) / dischargePowerW);
+        }
+        if (capacityLeftAh !== null && dischargeCurrentA >= 0.1) {
+          return toHm(capacityLeftAh / dischargeCurrentA);
+        }
+        return null;
+      }
+
+      // Charging: time to full at current charge rate
+      if (isChargingFlow) {
+        const chargePowerW = Math.max(voltage * current, 0);
+        const chargeCurrentA = Math.max(current, 0);
+
+        if (totalKwh !== null && energyAvailableKwh !== null && chargePowerW >= 5) {
+          const kwhToFull = Math.max(0, (totalKwh as number) - (energyAvailableKwh as number));
+          return toHm((kwhToFull * 1000) / chargePowerW);
+        }
+
+        if (this._config.capacity_total_ah !== undefined && Number.isFinite(this._config.capacity_total_ah)
+          && capacityLeftAh !== null && chargeCurrentA >= 0.1) {
+          const capTotal = this._config.capacity_total_ah as number;
+          const ahToFull = Math.max(0, capTotal - (capacityLeftAh as number));
+          return toHm(ahToFull / chargeCurrentA);
+        }
+
+        return null;
+      }
+
+      return null;
+    })();
+
+    const usageTimeDisplay = usageTimeHm ?? '--:--';
+
     return html`
       <div class="flow-section">
         <!-- Charger Node -->
@@ -893,11 +941,6 @@ export class JkBmsReactorCard extends LitElement {
             <ha-icon icon="mdi:power-plug-outline"></ha-icon>
           </div>
           <div class="node-label">Charge</div>
-          ${packState.isCharging ? html`
-            <div class="node-status">
-              <span class="status-on">ON</span>
-            </div>
-          ` : ''}
           ${chargeCurrent > 0 ? html`
             <div class="node-current">${formatNumber(chargeCurrent, 1)} A</div>
           ` : ''}
@@ -927,6 +970,7 @@ export class JkBmsReactorCard extends LitElement {
         ? html`${formatNumber(capacityLeftAh, 1)} Ah`
         : html`${formatNumber(voltage, 1)}V`}
             </div>
+            <div class="usage-time-text">${usageTimeDisplay}</div>
             ${energyAvailableKwh !== null ? html`
               <div class="energy-text">${formatNumber(energyAvailableKwh, 1)} kWh</div>
             ` : ''}
@@ -940,11 +984,6 @@ export class JkBmsReactorCard extends LitElement {
             <ha-icon icon="mdi:power-socket"></ha-icon>
           </div>
           <div class="node-label">Load</div>
-          ${packState.isDischarging ? html`
-            <div class="node-status">
-              <span class="status-on">ON</span>
-            </div>
-          ` : ''}
           ${dischargeCurrent > 0 ? html`
             <div class="node-current">${formatNumber(dischargeCurrent, 1)} A</div>
           ` : ''}
