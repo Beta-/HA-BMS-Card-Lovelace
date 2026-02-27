@@ -616,9 +616,29 @@ function getCellEntityIds(config) {
   }
   if (config.cells_prefix && config.cells_count) {
     const count = config.cells_count;
-    return Array.from({ length: count }, (_2, i2) => `${config.cells_prefix}${String(i2 + 1).padStart(2, "0")}`);
+    const pad = config.cells_prefix_pad ?? false;
+    return Array.from({ length: count }, (_2, i2) => {
+      const idx = i2 + 1;
+      const suffix = pad ? String(idx).padStart(2, "0") : String(idx);
+      return `${config.cells_prefix}${suffix}`;
+    });
   }
   return [];
+}
+function getCellWireResistanceEntityIds(config) {
+  if (Array.isArray(config.cell_wire_resistances) && config.cell_wire_resistances.length > 0) {
+    return config.cell_wire_resistances;
+  }
+  const templateRaw = (config.cell_wire_resistance_template ?? "").trim();
+  if (!templateRaw) return [];
+  const count = (config.cells_count ?? (Array.isArray(config.cells) ? config.cells.length : 0)) || 0;
+  if (!Number.isFinite(count) || count <= 0) return [];
+  const pad = config.cells_prefix_pad ?? false;
+  return Array.from({ length: count }, (_2, i2) => {
+    const idx = i2 + 1;
+    const n3 = pad ? String(idx).padStart(2, "0") : String(idx);
+    return templateRaw.split("{n}").join(n3);
+  });
 }
 function getCellVoltages(hass, config) {
   const entityIds = getCellEntityIds(config);
@@ -657,7 +677,15 @@ function getBalancingCells(hass, config, cellVoltages, current, delta, balanceCu
 }
 function computePackState(hass, config) {
   const voltage = getNumericValue(hass, config.pack_voltage);
-  const current = getNumericValue(hass, config.current);
+  const signedCurrentEntity = (config.current ?? "").trim();
+  const currentFromSigned = signedCurrentEntity ? getNumericValue(hass, signedCurrentEntity) : null;
+  const chargeCurrentEntity = (config.charge_current ?? "").trim();
+  const dischargeCurrentEntity = (config.discharge_current ?? "").trim();
+  const chargeRaw = chargeCurrentEntity ? getNumericValue(hass, chargeCurrentEntity) : null;
+  const dischargeRaw = dischargeCurrentEntity ? getNumericValue(hass, dischargeCurrentEntity) : null;
+  const chargeA = chargeRaw !== null && Number.isFinite(chargeRaw) ? Math.abs(chargeRaw) : null;
+  const dischargeA = dischargeRaw !== null && Number.isFinite(dischargeRaw) ? -Math.abs(dischargeRaw) : null;
+  const current = currentFromSigned !== null && Number.isFinite(currentFromSigned) ? currentFromSigned : chargeA !== null || dischargeA !== null ? (chargeA ?? 0) + (dischargeA ?? 0) : null;
   const soc = getNumericValue(hass, config.soc);
   const cellVoltages = getCellVoltages(hass, config);
   let delta = null;
@@ -676,11 +704,14 @@ function computePackState(hass, config) {
   const balanceCurrent = config.balancing_current ? getNumericValue(hass, config.balancing_current) : null;
   const balancingData = getBalancingCells(hass, config, cellVoltages, current, delta, balanceCurrent);
   const isBalancing = balancingData.some((b2) => b2.isBalancing);
+  const wireResEntityIds = getCellWireResistanceEntityIds(config);
+  const wireResOhm = wireResEntityIds.length ? wireResEntityIds.map((id) => id ? getNumericValue(hass, id) : null) : [];
   const cells = cellVoltages.map((voltage2, index) => ({
     index,
     voltage: voltage2,
     isBalancing: balancingData[index].isBalancing,
-    balanceDirection: balancingData[index].direction
+    balanceDirection: balancingData[index].direction,
+    wireResistanceOhm: index < wireResOhm.length ? wireResOhm[index] : null
   }));
   const chargeThreshold = config.charge_threshold_a ?? 0.5;
   const dischargeThreshold = config.discharge_threshold_a ?? 0.5;
@@ -1533,6 +1564,12 @@ const styles = i$3`
     color: var(--secondary-text-color);
   }
 
+  .reactor-grid.compact .cell-index-wrap {
+    display: inline-flex;
+    align-items: baseline;
+    gap: 6px;
+  }
+
   .reactor-grid.compact .cell-compact-voltage {
     font-size: 13px;
     font-weight: 800;
@@ -1755,6 +1792,17 @@ const styles = i$3`
     color: var(--secondary-text-color);
     margin-bottom: 4px;
     font-weight: 500;
+    display: inline-flex;
+    align-items: baseline;
+    gap: 6px;
+  }
+
+  .cell-wire-res {
+    font-size: 10px;
+    font-weight: 600;
+    color: var(--secondary-text-color);
+    opacity: 0.9;
+    white-space: nowrap;
   }
 
   .cell-voltage {
@@ -2261,6 +2309,7 @@ class JkBmsReactorCard extends i {
       soc: config.soc ?? "",
       cells_prefix: config.cells_prefix ?? "sensor.jk_bms_cell_",
       cells_count: config.cells_count ?? 16,
+      cells_prefix_pad: config.cells_prefix_pad ?? false,
       show_overlay: config.show_overlay ?? true,
       show_cell_labels: config.show_cell_labels ?? true,
       compact_cells: config.compact_cells ?? false,
@@ -2338,7 +2387,8 @@ class JkBmsReactorCard extends i {
       current: "",
       soc: "",
       cells_prefix: "sensor.jk_bms_cell_",
-      cells_count: 16
+      cells_count: 16,
+      cells_prefix_pad: false
     };
   }
   updated(changedProperties) {
@@ -2508,7 +2558,8 @@ class JkBmsReactorCard extends i {
       return b``;
     }
     const cardStyle = this._buildCardStyle();
-    const hasRequiredConfig = this._config.pack_voltage && this._config.current && this._config.soc;
+    const hasCurrentConfig = !!(this._config.current || this._config.charge_current || this._config.discharge_current);
+    const hasRequiredConfig = this._config.pack_voltage && hasCurrentConfig && this._config.soc;
     const hasCellsConfig = this._config.cells || this._config.cells_prefix && this._config.cells_count;
     if (!hasRequiredConfig || !hasCellsConfig) {
       return b`
@@ -2521,7 +2572,7 @@ class JkBmsReactorCard extends i {
                         </p>
                         <ul style="text-align: left; display: inline-block; margin-top: 16px;">
                             ${!this._config.pack_voltage ? b`<li>Pack Voltage entity</li>` : ""}
-                            ${!this._config.current ? b`<li>Current entity</li>` : ""}
+                          ${!hasCurrentConfig ? b`<li>Current entity (signed) or Charge/Discharge current entities</li>` : ""}
                             ${!this._config.soc ? b`<li>SOC entity</li>` : ""}
                             ${!hasCellsConfig ? b`<li>Cell configuration (cells array or prefix+count)</li>` : ""}
                         </ul>
@@ -2994,11 +3045,19 @@ class JkBmsReactorCard extends i {
 
           ${compact ? b`
             <div class="cell-compact-row">
-              <span class="cell-index">${originalIndex + 1}:</span>
+              <span class="cell-index-wrap">
+                <span class="cell-index">${originalIndex + 1}:</span>
+                ${cell.wireResistanceOhm !== null && cell.wireResistanceOhm !== void 0 && Number.isFinite(cell.wireResistanceOhm) ? b`<span class="cell-wire-res">${formatNumber(cell.wireResistanceOhm, 3)}Ω</span>` : ""}
+              </span>
               <span class="cell-compact-voltage">${formatNumber(cell.voltage, 3)}V</span>
             </div>
           ` : b`
-            ${showLabels ? b`<div class="cell-label">Cell ${originalIndex + 1}</div>` : ""}
+            ${showLabels ? b`
+              <div class="cell-label">
+                <span>Cell ${originalIndex + 1}</span>
+                ${cell.wireResistanceOhm !== null && cell.wireResistanceOhm !== void 0 && Number.isFinite(cell.wireResistanceOhm) ? b`<span class="cell-wire-res">${formatNumber(cell.wireResistanceOhm, 3)}Ω</span>` : ""}
+              </div>
+            ` : ""}
             <div class="cell-voltage">
               ${formatNumber(cell.voltage, 3)}
               <span class="cell-voltage-unit">V</span>
@@ -3303,9 +3362,13 @@ class JkBmsReactorCardEditor extends i {
       pack_voltage: config.pack_voltage ?? "",
       current: config.current ?? "",
       soc: config.soc ?? "",
+      charge_current: config.charge_current ?? "",
+      discharge_current: config.discharge_current ?? "",
       avg_cell_voltage: config.avg_cell_voltage ?? "",
       cells_prefix: config.cells_prefix ?? "sensor.jk_bms_cell_",
       cells_count: config.cells_count ?? 16,
+      cells_prefix_pad: config.cells_prefix_pad ?? false,
+      cell_wire_resistance_template: config.cell_wire_resistance_template ?? "",
       balance_threshold_v: config.balance_threshold_v ?? 0.01,
       charge_threshold_a: config.charge_threshold_a ?? 0.5,
       discharge_threshold_a: config.discharge_threshold_a ?? 0.5,
@@ -3404,6 +3467,28 @@ class JkBmsReactorCardEditor extends i {
       onChanged: this._valueChanged
     })}
           <div class="description">Entity for pack current (positive = charging)</div>
+        </div>
+
+        <div class="option">
+          <label title="Optional alternative to Current Entity.">Charge Current Entity (Optional)</label>
+          ${this._renderEntityPicker({
+      value: (this._config.charge_current ?? "") || "",
+      configValue: "charge_current",
+      includeDomains: ["sensor", "input_number", "number"],
+      onChanged: this._valueChanged
+    })}
+          <div class="description">If set (and Current Entity is blank), used as positive charge current</div>
+        </div>
+
+        <div class="option">
+          <label title="Optional alternative to Current Entity.">Discharge Current Entity (Optional)</label>
+          ${this._renderEntityPicker({
+      value: (this._config.discharge_current ?? "") || "",
+      configValue: "discharge_current",
+      includeDomains: ["sensor", "input_number", "number"],
+      onChanged: this._valueChanged
+    })}
+          <div class="description">If set (and Current Entity is blank), used as negative discharge current</div>
         </div>
 
         <div class="option">
@@ -4067,6 +4152,18 @@ class JkBmsReactorCardEditor extends i {
       </div>
 
       <div class="option">
+        <ha-switch
+          .checked=${this._config.cells_prefix_pad ?? false}
+          .configValue=${"cells_prefix_pad"}
+          @change=${this._toggleChanged}
+          title="If enabled, generates cell IDs like ..._01, ..._02 (prefix mode only)."
+        >
+          <span slot="label">Pad cell numbers (01, 02)</span>
+        </ha-switch>
+        <div class="description">Enable if your entity IDs use leading zeros</div>
+      </div>
+
+      <div class="option">
         <label>Number of Cells</label>
         <ha-textfield
           type="number"
@@ -4077,6 +4174,17 @@ class JkBmsReactorCardEditor extends i {
           max="32"
         ></ha-textfield>
         <div class="description">Total number of cells (default: 16)</div>
+      </div>
+
+      <div class="option">
+        <label title="Optional: per-cell wire resistance entity template. Use {n} as the cell number placeholder.">Cell Wire Resistance Template (Optional)</label>
+        <ha-textfield
+          .value=${this._config.cell_wire_resistance_template || ""}
+          .configValue=${"cell_wire_resistance_template"}
+          @input=${this._valueChanged}
+          placeholder="sensor.jk_bms_cell_{n}_wire_resistance"
+        ></ha-textfield>
+        <div class="description">Example: sensor.jk_bms_cell_{n}_wire_resistance (uses Pad Cell Numbers if enabled)</div>
       </div>
     `;
   }
@@ -4109,6 +4217,17 @@ class JkBmsReactorCardEditor extends i {
           Add Cell
         </ha-button>
       </div>
+
+      <div class="option">
+        <label title="Optional: per-cell wire resistance entity template. Use {n} as the cell number placeholder.">Cell Wire Resistance Template (Optional)</label>
+        <ha-textfield
+          .value=${this._config.cell_wire_resistance_template || ""}
+          .configValue=${"cell_wire_resistance_template"}
+          @input=${this._valueChanged}
+          placeholder="sensor.jk_bms_cell_{n}_wire_resistance"
+        ></ha-textfield>
+        <div class="description">Uses cell index (1..N). Pad setting applies if enabled.</div>
+      </div>
     `;
   }
   _setCellsMode(mode) {
@@ -4116,7 +4235,12 @@ class JkBmsReactorCardEditor extends i {
     if (mode === "array") {
       const count = newConfig.cells_count || 16;
       const prefix = newConfig.cells_prefix || "sensor.jk_bms_cell_";
-      newConfig.cells = Array.from({ length: count }, (_2, i2) => `${prefix}${i2 + 1}`);
+      const pad = newConfig.cells_prefix_pad ?? false;
+      newConfig.cells = Array.from({ length: count }, (_2, i2) => {
+        const idx = i2 + 1;
+        const suffix = pad ? String(idx).padStart(2, "0") : String(idx);
+        return `${prefix}${suffix}`;
+      });
       delete newConfig.cells_prefix;
       delete newConfig.cells_count;
     } else {

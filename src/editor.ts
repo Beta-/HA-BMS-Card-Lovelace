@@ -130,9 +130,13 @@ export class JkBmsReactorCardEditor extends LitElement {
       pack_voltage: config.pack_voltage ?? '',
       current: config.current ?? '',
       soc: config.soc ?? '',
+      charge_current: config.charge_current ?? '',
+      discharge_current: config.discharge_current ?? '',
       avg_cell_voltage: config.avg_cell_voltage ?? '',
       cells_prefix: config.cells_prefix ?? 'sensor.jk_bms_cell_',
       cells_count: config.cells_count ?? 16,
+      cells_prefix_pad: config.cells_prefix_pad ?? false,
+      cell_wire_resistance_template: config.cell_wire_resistance_template ?? '',
       balance_threshold_v: config.balance_threshold_v ?? 0.01,
       charge_threshold_a: config.charge_threshold_a ?? 0.5,
       discharge_threshold_a: config.discharge_threshold_a ?? 0.5,
@@ -253,6 +257,28 @@ export class JkBmsReactorCardEditor extends LitElement {
       onChanged: this._valueChanged,
     })}
           <div class="description">Entity for pack current (positive = charging)</div>
+        </div>
+
+        <div class="option">
+          <label title="Optional alternative to Current Entity.">Charge Current Entity (Optional)</label>
+          ${this._renderEntityPicker({
+      value: (this._config.charge_current ?? '') || '',
+      configValue: 'charge_current',
+      includeDomains: ['sensor', 'input_number', 'number'],
+      onChanged: this._valueChanged,
+    })}
+          <div class="description">If set (and Current Entity is blank), used as positive charge current</div>
+        </div>
+
+        <div class="option">
+          <label title="Optional alternative to Current Entity.">Discharge Current Entity (Optional)</label>
+          ${this._renderEntityPicker({
+      value: (this._config.discharge_current ?? '') || '',
+      configValue: 'discharge_current',
+      includeDomains: ['sensor', 'input_number', 'number'],
+      onChanged: this._valueChanged,
+    })}
+          <div class="description">If set (and Current Entity is blank), used as negative discharge current</div>
         </div>
 
         <div class="option">
@@ -920,6 +946,18 @@ export class JkBmsReactorCardEditor extends LitElement {
       </div>
 
       <div class="option">
+        <ha-switch
+          .checked=${this._config.cells_prefix_pad ?? false}
+          .configValue=${'cells_prefix_pad'}
+          @change=${this._toggleChanged}
+          title="If enabled, generates cell IDs like ..._01, ..._02 (prefix mode only)."
+        >
+          <span slot="label">Pad cell numbers (01, 02)</span>
+        </ha-switch>
+        <div class="description">Enable if your entity IDs use leading zeros</div>
+      </div>
+
+      <div class="option">
         <label>Number of Cells</label>
         <ha-textfield
           type="number"
@@ -930,6 +968,17 @@ export class JkBmsReactorCardEditor extends LitElement {
           max="32"
         ></ha-textfield>
         <div class="description">Total number of cells (default: 16)</div>
+      </div>
+
+      <div class="option">
+        <label title="Optional: per-cell wire resistance entity template. Use {n} as the cell number placeholder.">Cell Wire Resistance Template (Optional)</label>
+        <ha-textfield
+          .value=${this._config.cell_wire_resistance_template || ''}
+          .configValue=${'cell_wire_resistance_template'}
+          @input=${this._valueChanged}
+          placeholder="sensor.jk_bms_cell_{n}_wire_resistance"
+        ></ha-textfield>
+        <div class="description">Example: sensor.jk_bms_cell_{n}_wire_resistance (uses Pad Cell Numbers if enabled)</div>
       </div>
     `;
   }
@@ -964,6 +1013,17 @@ export class JkBmsReactorCardEditor extends LitElement {
           Add Cell
         </ha-button>
       </div>
+
+      <div class="option">
+        <label title="Optional: per-cell wire resistance entity template. Use {n} as the cell number placeholder.">Cell Wire Resistance Template (Optional)</label>
+        <ha-textfield
+          .value=${this._config.cell_wire_resistance_template || ''}
+          .configValue=${'cell_wire_resistance_template'}
+          @input=${this._valueChanged}
+          placeholder="sensor.jk_bms_cell_{n}_wire_resistance"
+        ></ha-textfield>
+        <div class="description">Uses cell index (1..N). Pad setting applies if enabled.</div>
+      </div>
     `;
   }
 
@@ -974,7 +1034,12 @@ export class JkBmsReactorCardEditor extends LitElement {
       // Switch to cells array
       const count = newConfig.cells_count || 16;
       const prefix = newConfig.cells_prefix || 'sensor.jk_bms_cell_';
-      newConfig.cells = Array.from({ length: count }, (_, i) => `${prefix}${i + 1}`);
+      const pad = newConfig.cells_prefix_pad ?? false;
+      newConfig.cells = Array.from({ length: count }, (_, i) => {
+        const idx = i + 1;
+        const suffix = pad ? String(idx).padStart(2, '0') : String(idx);
+        return `${prefix}${suffix}`;
+      });
       delete newConfig.cells_prefix;
       delete newConfig.cells_count;
     } else {

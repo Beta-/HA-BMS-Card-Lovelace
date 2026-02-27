@@ -28,6 +28,11 @@ export interface JkBmsReactorCardConfig {
     current: string;
     soc: string;
 
+    // Optional alternative to `current`: provide separate sensors.
+    // charge_current is normalized to positive, discharge_current to negative.
+    charge_current?: string;
+    discharge_current?: string;
+
     // Optional: average cell voltage provided by BMS/HA
     avg_cell_voltage?: string;
 
@@ -37,6 +42,14 @@ export interface JkBmsReactorCardConfig {
     cells?: string[];
     cells_prefix?: string;
     cells_count?: number;
+    // If true, generates cell IDs like ..._01, ..._02, etc. (prefix mode only)
+    cells_prefix_pad?: boolean;
+
+    // Optional: per-cell wire resistance (Ohm). Used only for display.
+    // Provide either explicit entities (cell_wire_resistances) or a template with {n} placeholder.
+    // Example template: sensor.jk_bms_cell_{n}_wire_resistance
+    cell_wire_resistances?: string[];
+    cell_wire_resistance_template?: string;
     balancing?: string;
     balancing_current?: string;
     delta?: string;
@@ -118,6 +131,7 @@ export interface CellData {
     voltage: number;
     isBalancing: boolean;
     balanceDirection?: 'charging' | 'discharging' | null;
+    wireResistanceOhm?: number | null;
 }
 
 /**

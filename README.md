@@ -123,11 +123,15 @@ show_cell_labels: true
 |--------|------|----------|---------|-------------|
 | `type` | string | **Yes** | - | Must be `custom:jk-bms-reactor-card` |
 | `pack_voltage` | string | **Yes** | - | Entity ID for pack voltage sensor |
-| `current` | string | **Yes** | - | Entity ID for pack current sensor |
+| `current` | string | No* | - | Entity ID for pack current sensor (signed: discharge negative, charge positive) |
+| `charge_current` | string | No* | - | Entity ID for charge current sensor (will be treated as positive amps) |
+| `discharge_current` | string | No* | - | Entity ID for discharge current sensor (will be treated as negative amps) |
 | `soc` | string | **Yes** | - | Entity ID for state of charge sensor |
 | `cells` | string[] | **Yes*** | - | Array of cell voltage entity IDs |
 | `cells_prefix` | string | **Yes*** | - | Prefix for cell entity IDs (e.g., `sensor.jk_bms_cell_`) |
 | `cells_count` | number | **Yes*** | - | Number of cells (e.g., 16) |
+| `cells_prefix_pad` | boolean | No | `false` | If true, generates cell IDs like `..._01`, `..._02` when using `cells_prefix` |
+| `cell_wire_resistance_template` | string | No | - | Optional template for per-cell wire resistance entities. Use `{n}` placeholder (e.g., `sensor.jk_bms_cell_{n}_wire_resistance`). Displayed next to the cell number with `Ω`. |
 | `balancing` | string | No | - | Entity ID for balancing status (boolean or on/off) |
 | `delta` | string | No | - | Entity ID for delta voltage sensor (computed if not provided) |
 | `balance_threshold_v` | number | No | `0.01` | Voltage threshold to determine balancing cells (V) |
@@ -136,7 +140,9 @@ show_cell_labels: true
 | `show_overlay` | boolean | No | `true` | Show SVG overlay for balancing visualization |
 | `show_cell_labels` | boolean | No | `true` | Show cell labels (Cell 1, Cell 2, etc.) |
 
-\* Either `cells` array OR both `cells_prefix` and `cells_count` must be provided
+\* Provide either `current` OR `charge_current`/`discharge_current` (you can set just one, but both is best)
+
+\*\* Either `cells` array OR both `cells_prefix` and `cells_count` must be provided
 
 ## Balancing Logic
 

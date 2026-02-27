@@ -820,6 +820,12 @@ export const styles = css`
     color: var(--secondary-text-color);
   }
 
+  .reactor-grid.compact .cell-index-wrap {
+    display: inline-flex;
+    align-items: baseline;
+    gap: 6px;
+  }
+
   .reactor-grid.compact .cell-compact-voltage {
     font-size: 13px;
     font-weight: 800;
@@ -1042,6 +1048,17 @@ export const styles = css`
     color: var(--secondary-text-color);
     margin-bottom: 4px;
     font-weight: 500;
+    display: inline-flex;
+    align-items: baseline;
+    gap: 6px;
+  }
+
+  .cell-wire-res {
+    font-size: 10px;
+    font-weight: 600;
+    color: var(--secondary-text-color);
+    opacity: 0.9;
+    white-space: nowrap;
   }
 
   .cell-voltage {

@@ -411,6 +411,7 @@ export class JkBmsReactorCard extends LitElement {
       soc: config.soc ?? '',
       cells_prefix: config.cells_prefix ?? 'sensor.jk_bms_cell_',
       cells_count: config.cells_count ?? 16,
+      cells_prefix_pad: config.cells_prefix_pad ?? false,
       show_overlay: config.show_overlay ?? true,
       show_cell_labels: config.show_cell_labels ?? true,
       compact_cells: config.compact_cells ?? false,
@@ -509,6 +510,7 @@ export class JkBmsReactorCard extends LitElement {
       soc: '',
       cells_prefix: 'sensor.jk_bms_cell_',
       cells_count: 16,
+      cells_prefix_pad: false,
     };
   }
 
@@ -736,7 +738,8 @@ export class JkBmsReactorCard extends LitElement {
     const cardStyle = this._buildCardStyle();
 
     // Check if configuration is incomplete
-    const hasRequiredConfig = this._config.pack_voltage && this._config.current && this._config.soc;
+    const hasCurrentConfig = !!(this._config.current || this._config.charge_current || this._config.discharge_current);
+    const hasRequiredConfig = this._config.pack_voltage && hasCurrentConfig && this._config.soc;
     const hasCellsConfig = this._config.cells || (this._config.cells_prefix && this._config.cells_count);
 
     if (!hasRequiredConfig || !hasCellsConfig) {
@@ -750,7 +753,7 @@ export class JkBmsReactorCard extends LitElement {
                         </p>
                         <ul style="text-align: left; display: inline-block; margin-top: 16px;">
                             ${!this._config.pack_voltage ? html`<li>Pack Voltage entity</li>` : ''}
-                            ${!this._config.current ? html`<li>Current entity</li>` : ''}
+                          ${!hasCurrentConfig ? html`<li>Current entity (signed) or Charge/Discharge current entities</li>` : ''}
                             ${!this._config.soc ? html`<li>SOC entity</li>` : ''}
                             ${!hasCellsConfig ? html`<li>Cell configuration (cells array or prefix+count)</li>` : ''}
                         </ul>
@@ -1380,11 +1383,23 @@ export class JkBmsReactorCard extends LitElement {
 
           ${compact ? html`
             <div class="cell-compact-row">
-              <span class="cell-index">${originalIndex + 1}:</span>
+              <span class="cell-index-wrap">
+                <span class="cell-index">${originalIndex + 1}:</span>
+                ${cell.wireResistanceOhm !== null && cell.wireResistanceOhm !== undefined && Number.isFinite(cell.wireResistanceOhm)
+                  ? html`<span class="cell-wire-res">${formatNumber(cell.wireResistanceOhm, 3)}Ω</span>`
+                  : ''}
+              </span>
               <span class="cell-compact-voltage">${formatNumber(cell.voltage, 3)}V</span>
             </div>
           ` : html`
-            ${showLabels ? html`<div class="cell-label">Cell ${originalIndex + 1}</div>` : ''}
+            ${showLabels ? html`
+              <div class="cell-label">
+                <span>Cell ${originalIndex + 1}</span>
+                ${cell.wireResistanceOhm !== null && cell.wireResistanceOhm !== undefined && Number.isFinite(cell.wireResistanceOhm)
+                  ? html`<span class="cell-wire-res">${formatNumber(cell.wireResistanceOhm, 3)}Ω</span>`
+                  : ''}
+              </div>
+            ` : ''}
             <div class="cell-voltage">
               ${formatNumber(cell.voltage, 3)}
               <span class="cell-voltage-unit">V</span>

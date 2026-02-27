@@ -46,11 +46,38 @@ export function getCellEntityIds(config: JkBmsReactorCardConfig): string[] {
 
     if (config.cells_prefix && config.cells_count) {
         const count = config.cells_count;
-        return Array.from({ length: count }, (_, i) => `${config.cells_prefix}${String(i + 1).padStart(2, '0')}`);
+        const pad = config.cells_prefix_pad ?? false;
+        return Array.from({ length: count }, (_, i) => {
+            const idx = i + 1;
+            const suffix = pad ? String(idx).padStart(2, '0') : String(idx);
+            return `${config.cells_prefix}${suffix}`;
+        });
     }
 
     // Default: assume 16 cells
     return [];
+}
+
+/**
+ * Generate wire resistance entity IDs from config
+ */
+export function getCellWireResistanceEntityIds(config: JkBmsReactorCardConfig): string[] {
+    if (Array.isArray(config.cell_wire_resistances) && config.cell_wire_resistances.length > 0) {
+        return config.cell_wire_resistances;
+    }
+
+    const templateRaw = (config.cell_wire_resistance_template ?? '').trim();
+    if (!templateRaw) return [];
+
+    const count = (config.cells_count ?? (Array.isArray(config.cells) ? config.cells.length : 0)) || 0;
+    if (!Number.isFinite(count) || count <= 0) return [];
+
+    const pad = config.cells_prefix_pad ?? false;
+    return Array.from({ length: count }, (_, i) => {
+        const idx = i + 1;
+        const n = pad ? String(idx).padStart(2, '0') : String(idx);
+        return templateRaw.split('{n}').join(n);
+    });
 }
 
 /**
@@ -131,7 +158,26 @@ export function computePackState(
     config: JkBmsReactorCardConfig
 ): PackState {
     const voltage = getNumericValue(hass, config.pack_voltage);
-    const current = getNumericValue(hass, config.current);
+
+    const signedCurrentEntity = (config.current ?? '').trim();
+    const currentFromSigned = signedCurrentEntity ? getNumericValue(hass, signedCurrentEntity) : null;
+
+    const chargeCurrentEntity = (config.charge_current ?? '').trim();
+    const dischargeCurrentEntity = (config.discharge_current ?? '').trim();
+    const chargeRaw = chargeCurrentEntity ? getNumericValue(hass, chargeCurrentEntity) : null;
+    const dischargeRaw = dischargeCurrentEntity ? getNumericValue(hass, dischargeCurrentEntity) : null;
+
+    // Normalize: charge => positive, discharge => negative
+    const chargeA = chargeRaw !== null && Number.isFinite(chargeRaw) ? Math.abs(chargeRaw) : null;
+    const dischargeA = dischargeRaw !== null && Number.isFinite(dischargeRaw) ? -Math.abs(dischargeRaw) : null;
+
+    // Prefer explicit signed current if present; otherwise combine charge+discharge.
+    // If only one of them exists, use it.
+    const current = currentFromSigned !== null && Number.isFinite(currentFromSigned)
+        ? currentFromSigned
+        : (chargeA !== null || dischargeA !== null)
+            ? (chargeA ?? 0) + (dischargeA ?? 0)
+            : null;
     const soc = getNumericValue(hass, config.soc);
 
     const cellVoltages = getCellVoltages(hass, config);
@@ -159,11 +205,17 @@ export function computePackState(
     const balancingData = getBalancingCells(hass, config, cellVoltages, current, delta, balanceCurrent);
     const isBalancing = balancingData.some(b => b.isBalancing);
 
+    const wireResEntityIds = getCellWireResistanceEntityIds(config);
+    const wireResOhm = wireResEntityIds.length
+        ? wireResEntityIds.map(id => (id ? getNumericValue(hass, id) : null))
+        : [];
+
     const cells: CellData[] = cellVoltages.map((voltage, index) => ({
         index,
         voltage,
         isBalancing: balancingData[index].isBalancing,
         balanceDirection: balancingData[index].direction,
+        wireResistanceOhm: index < wireResOhm.length ? wireResOhm[index] : null,
     }));
 
     const chargeThreshold = config.charge_threshold_a ?? 0.5;
