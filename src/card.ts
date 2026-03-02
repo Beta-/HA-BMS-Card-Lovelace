@@ -424,6 +424,23 @@ export class JkBmsReactorCard extends LitElement {
 
       pack_voltage_min: config.pack_voltage_min,
       pack_voltage_max: config.pack_voltage_max,
+
+      current_min: config.current_min,
+      current_max: config.current_max,
+      power_min: config.power_min,
+      power_max: config.power_max,
+      delta_min: config.delta_min,
+      delta_max: config.delta_max,
+
+      mos_temp_min: config.mos_temp_min,
+      mos_temp_max: config.mos_temp_max,
+      temp_sensors_min: config.temp_sensors_min,
+      temp_sensors_max: config.temp_sensors_max,
+
+      temperature_min: config.temperature_min,
+      temperature_max: config.temperature_max,
+
+      miniature_view: config.miniature_view ?? false,
       capacity_remaining: config.capacity_remaining,
       capacity_total_ah: config.capacity_total_ah,
 
@@ -764,6 +781,16 @@ export class JkBmsReactorCard extends LitElement {
 
     const packState = computePackState(this.hass, this._config);
 
+    if (this._config.miniature_view) {
+      return html`
+        <ha-card style=${cardStyle}>
+          <div class="card-content">
+            ${this._renderMiniature(packState)}
+          </div>
+        </ha-card>
+      `;
+    }
+
     return html`
         <ha-card style=${cardStyle}>
                 <div class="card-content">
@@ -1041,14 +1068,20 @@ export class JkBmsReactorCard extends LitElement {
 
         <div class="stat-panel stat-current ${current > 0.5 ? 'flow-in' : current < -0.5 ? 'flow-out' : ''}">
           <svg class="stat-sparkline-svg" viewBox="0 0 100 30" preserveAspectRatio="none" aria-hidden="true">
-            <polyline class="sparkline current" points="${this._sparklinePoints(this._history.current)}"></polyline>
+            <polyline class="sparkline current" points="${this._sparklinePoints(this._history.current, 100, 30, {
+          min: this._config.current_min,
+          max: this._config.current_max,
+        })}"></polyline>
           </svg>
           <div class="stat-label">Current</div>
           <div class="stat-value">${formatNumber(packState.current, 2)} A</div>
         </div>
         <div class="stat-panel stat-power ${current > 0.5 ? 'flow-in' : current < -0.5 ? 'flow-out' : ''}">
           <svg class="stat-sparkline-svg" viewBox="0 0 100 30" preserveAspectRatio="none" aria-hidden="true">
-            <polyline class="sparkline power" points="${this._sparklinePoints(this._history.power)}"></polyline>
+            <polyline class="sparkline power" points="${this._sparklinePoints(this._history.power, 100, 30, {
+          min: this._config.power_min,
+          max: this._config.power_max,
+        })}"></polyline>
           </svg>
           <div class="stat-label">Power</div>
           <div class="stat-value">${formatNumber(Math.abs((packState.voltage ?? 0) * (packState.current ?? 0)), 1)} W</div>
@@ -1085,7 +1118,10 @@ export class JkBmsReactorCard extends LitElement {
           <div class="delta-minmax-container">
             <div class="delta-left">
               <svg class="delta-sparkline-svg" viewBox="0 0 100 30" preserveAspectRatio="none" aria-hidden="true">
-                <polyline class="sparkline delta" points="${this._sparklinePoints(this._history.delta)}"></polyline>
+                <polyline class="sparkline delta" points="${this._sparklinePoints(this._history.delta, 100, 30, {
+          min: this._config.delta_min,
+          max: this._config.delta_max,
+        })}"></polyline>
               </svg>
               <div class="delta-label">Delta</div>
               <div class="delta-value">${formatNumber(packState.delta, 3)}V</div>
@@ -1128,7 +1164,10 @@ export class JkBmsReactorCard extends LitElement {
         ${this._config.mos_temp ? html`
           <div class="stat-panel stat-mos-temp">
             <svg class="stat-sparkline-svg" viewBox="0 0 100 30" preserveAspectRatio="none" aria-hidden="true">
-              <polyline class="sparkline temp" points="${this._sparklinePoints(this._historyByEntity[this._config.mos_temp] ?? [])}"></polyline>
+              <polyline class="sparkline temp" points="${this._sparklinePoints(this._historyByEntity[this._config.mos_temp] ?? [], 100, 30, {
+        min: this._config.mos_temp_min ?? this._config.temperature_min,
+        max: this._config.mos_temp_max ?? this._config.temperature_max,
+      })}"></polyline>
             </svg>
             <div class="stat-label">MOS Temp</div>
             <div class="stat-value">${formatNumber(packState.mosTemp ?? null, 1)} °C</div>
@@ -1141,7 +1180,10 @@ export class JkBmsReactorCard extends LitElement {
           ${(packState.temps ?? []).map(t => html`
             <div class="stat-panel">
               <svg class="stat-sparkline-svg" viewBox="0 0 100 30" preserveAspectRatio="none" aria-hidden="true">
-                <polyline class="sparkline temp" points="${this._sparklinePoints(this._historyByEntity[(this._config.temp_sensors ?? [])[t.index]] ?? [])}"></polyline>
+                <polyline class="sparkline temp" points="${this._sparklinePoints(this._historyByEntity[(this._config.temp_sensors ?? [])[t.index]] ?? [], 100, 30, {
+        min: (this._config.temp_sensors_min?.[t.index] ?? null) ?? this._config.temperature_min,
+        max: (this._config.temp_sensors_max?.[t.index] ?? null) ?? this._config.temperature_max,
+      })}"></polyline>
               </svg>
               <div class="stat-label">Temp ${t.index + 1}</div>
               <div class="stat-value">${formatNumber(t.temp ?? null, 1)} °C</div>
@@ -1149,6 +1191,98 @@ export class JkBmsReactorCard extends LitElement {
           `)}
         </div>
       ` : ''}
+    `;
+  }
+
+  private _renderMiniature(packState: PackState) {
+    const current = packState.current ?? 0;
+    const voltage = packState.voltage ?? 0;
+    const soc = packState.soc ?? 0;
+    const powerW = voltage * current;
+
+    const isChargingFlow = packState.isCharging && current > 0;
+    const isDischargingFlow = packState.isDischarging && current < 0;
+
+    const segCount = 360;
+    const activeSegs = Math.max(0, Math.min(segCount, Math.round((soc / 100) * segCount)));
+    const socGlowClass = isChargingFlow ? 'charging' : isDischargingFlow ? 'discharging' : 'standby';
+
+    const avgCellV = (() => {
+      const entityId = (this._config.avg_cell_voltage ?? '').trim();
+      const fromEntity = entityId ? getNumericValue(this.hass, entityId) : null;
+      if (fromEntity !== null && Number.isFinite(fromEntity)) return fromEntity;
+      return packState.cells.length
+        ? packState.cells.reduce((sum, c) => sum + c.voltage, 0) / packState.cells.length
+        : (this._config.cells_count && Number.isFinite(this._config.cells_count)
+          ? voltage / (this._config.cells_count as number)
+          : null);
+    })();
+
+    const delta = packState.delta;
+    const chargeCurrent = isChargingFlow ? Math.abs(current) : 0;
+    const dischargeCurrent = isDischargingFlow ? Math.abs(current) : 0;
+
+    return html`
+      <div class="miniature">
+        <div class="mini-orbit">
+          <div class="mini-node left">
+            <div class="icon-circle ${isChargingFlow ? 'active-charge' : ''} clickable" @click=${() => this._handleChargeClick()}>
+              <ha-icon icon="mdi:power-plug-outline"></ha-icon>
+            </div>
+            ${chargeCurrent > 0 ? html`<div class="mini-node-value">${formatNumber(chargeCurrent, 1)} A</div>` : html`<div class="mini-node-value">&nbsp;</div>`}
+          </div>
+
+          <div class="mini-ring">
+            <div class="reactor-ring-container">
+              <svg class="soc-segmented ${socGlowClass}" viewBox="0 0 120 120" aria-hidden="true">
+                <g transform="translate(60 60)">
+                  ${Array.from({ length: segCount }, (_, i) => {
+      const isActive = i < activeSegs;
+      return svg`
+                        <line
+                          class="soc-seg ${isActive ? 'active' : 'inactive'}"
+                          x1="0" y1="-52" x2="0" y2="-58"
+                          transform="rotate(${i})"
+                        ></line>
+                      `;
+    })}
+                </g>
+              </svg>
+              <div class="reactor-ring ${socGlowClass} ${this._config.tint_soc_details ? 'tint-details' : ''}">
+                <div class="soc-label">%</div>
+                <div class="soc-value">${formatNumber(soc, 0)}%</div>
+                <div class="capacity-text">${formatNumber(voltage, 1)}V</div>
+              </div>
+            </div>
+          </div>
+
+          <div class="mini-node right">
+            <div class="icon-circle ${isDischargingFlow ? 'active-discharge' : ''} clickable" @click=${() => this._handleDischargeClick()}>
+              <ha-icon icon="mdi:power-socket"></ha-icon>
+            </div>
+            ${dischargeCurrent > 0 ? html`<div class="mini-node-value">${formatNumber(dischargeCurrent, 1)} A</div>` : html`<div class="mini-node-value">&nbsp;</div>`}
+          </div>
+        </div>
+
+        <div class="mini-stats">
+          <div class="mini-stat">
+            <div class="mini-label">Voltage</div>
+            <div class="mini-value">${formatNumber(packState.voltage, 2)} V</div>
+          </div>
+          <div class="mini-stat">
+            <div class="mini-label">Power</div>
+            <div class="mini-value">${formatNumber(Math.abs(powerW), 1)} W</div>
+          </div>
+          <div class="mini-stat">
+            <div class="mini-label">Delta</div>
+            <div class="mini-value">${formatNumber(delta, 3)} V</div>
+          </div>
+          <div class="mini-stat">
+            <div class="mini-label">Avg Cell</div>
+            <div class="mini-value">${avgCellV !== null ? `${formatNumber(avgCellV, 3)} V` : '—'}</div>
+          </div>
+        </div>
+      </div>
     `;
   }
 
@@ -1386,8 +1520,8 @@ export class JkBmsReactorCard extends LitElement {
               <span class="cell-index-wrap">
                 <span class="cell-index">${originalIndex + 1}:</span>
                 ${cell.wireResistanceOhm !== null && cell.wireResistanceOhm !== undefined && Number.isFinite(cell.wireResistanceOhm)
-                  ? html`<span class="cell-wire-res">${formatNumber(cell.wireResistanceOhm, 3)}Ω</span>`
-                  : ''}
+            ? html`<span class="cell-wire-res">${formatNumber(cell.wireResistanceOhm, 3)}Ω</span>`
+            : ''}
               </span>
               <span class="cell-compact-voltage">${formatNumber(cell.voltage, 3)}V</span>
             </div>
@@ -1396,8 +1530,8 @@ export class JkBmsReactorCard extends LitElement {
               <div class="cell-label">
                 <span>Cell ${originalIndex + 1}</span>
                 ${cell.wireResistanceOhm !== null && cell.wireResistanceOhm !== undefined && Number.isFinite(cell.wireResistanceOhm)
-                  ? html`<span class="cell-wire-res">${formatNumber(cell.wireResistanceOhm, 3)}Ω</span>`
-                  : ''}
+              ? html`<span class="cell-wire-res">${formatNumber(cell.wireResistanceOhm, 3)}Ω</span>`
+              : ''}
               </div>
             ` : ''}
             <div class="cell-voltage">

@@ -39,6 +39,28 @@ export interface JkBmsReactorCardConfig {
     // Optional scaling for pack voltage sparkline
     pack_voltage_min?: number;
     pack_voltage_max?: number;
+
+    // Optional scaling for other sparklines (only used when BOTH min and max are provided)
+    current_min?: number;
+    current_max?: number;
+    power_min?: number;
+    power_max?: number;
+    delta_min?: number;
+    delta_max?: number;
+
+    // Temperature sparkline scaling
+    // - Per-sensor overrides (preferred when provided)
+    mos_temp_min?: number;
+    mos_temp_max?: number;
+    temp_sensors_min?: Array<number | null>;
+    temp_sensors_max?: Array<number | null>;
+
+    // - Legacy / fallback (applies when per-sensor overrides are not set)
+    temperature_min?: number;
+    temperature_max?: number;
+
+    // View mode
+    miniature_view?: boolean;
     cells?: string[];
     cells_prefix?: string;
     cells_count?: number;

@@ -134,9 +134,24 @@ show_cell_labels: true
 | `cell_wire_resistance_template` | string | No | - | Optional template for per-cell wire resistance entities. Use `{n}` placeholder (e.g., `sensor.jk_bms_cell_{n}_wire_resistance`). Displayed next to the cell number with `Ω`. |
 | `balancing` | string | No | - | Entity ID for balancing status (boolean or on/off) |
 | `delta` | string | No | - | Entity ID for delta voltage sensor (computed if not provided) |
+| `miniature_view` | boolean | No | `false` | If true, shows a compact circular overview instead of the full layout |
 | `balance_threshold_v` | number | No | `0.01` | Voltage threshold to determine balancing cells (V) |
 | `charge_threshold_a` | number | No | `0.5` | Current threshold to trigger charging animation (A) |
 | `discharge_threshold_a` | number | No | `0.5` | Current threshold to trigger discharging animation (A) |
+| `pack_voltage_min` | number | No | - | Optional: fixed min for the Voltage sparkline (used only when both min+max are set) |
+| `pack_voltage_max` | number | No | - | Optional: fixed max for the Voltage sparkline (used only when both min+max are set) |
+| `current_min` | number | No | - | Optional: fixed min for the Current sparkline (used only when both min+max are set) |
+| `current_max` | number | No | - | Optional: fixed max for the Current sparkline (used only when both min+max are set) |
+| `power_min` | number | No | - | Optional: fixed min for the Power sparkline (used only when both min+max are set) |
+| `power_max` | number | No | - | Optional: fixed max for the Power sparkline (used only when both min+max are set) |
+| `delta_min` | number | No | - | Optional: fixed min for the Delta sparkline (used only when both min+max are set) |
+| `delta_max` | number | No | - | Optional: fixed max for the Delta sparkline (used only when both min+max are set) |
+| `mos_temp_min` | number | No | - | Optional: fixed min for MOS temperature sparkline (used only when both min+max are set) |
+| `mos_temp_max` | number | No | - | Optional: fixed max for MOS temperature sparkline (used only when both min+max are set) |
+| `temp_sensors_min` | number[] | No | - | Optional: per-temp-sensor fixed mins by index (Temp 1..N). Use `null` to leave unset. Effective only when both min+max are set for that index |
+| `temp_sensors_max` | number[] | No | - | Optional: per-temp-sensor fixed maxes by index (Temp 1..N). Use `null` to leave unset. Effective only when both min+max are set for that index |
+| `temperature_min` | number | No | - | Optional fallback: default min for temperature sparklines when per-sensor mins/maxes are not set (used only when both min+max are set) |
+| `temperature_max` | number | No | - | Optional fallback: default max for temperature sparklines when per-sensor mins/maxes are not set (used only when both min+max are set) |
 | `show_overlay` | boolean | No | `true` | Show SVG overlay for balancing visualization |
 | `show_cell_labels` | boolean | No | `true` | Show cell labels (Cell 1, Cell 2, etc.) |
 

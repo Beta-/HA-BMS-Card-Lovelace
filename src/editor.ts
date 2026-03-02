@@ -78,6 +78,10 @@ export class JkBmsReactorCardEditor extends LitElement {
         flex: 1;
       }
 
+      .cell-input ha-textfield.range-field {
+        flex: 0 0 74px;
+      }
+
       .add-cell-btn {
         margin-top: 8px;
       }
@@ -149,6 +153,21 @@ export class JkBmsReactorCardEditor extends LitElement {
 
       pack_voltage_min: config.pack_voltage_min,
       pack_voltage_max: config.pack_voltage_max,
+      current_min: config.current_min,
+      current_max: config.current_max,
+      power_min: config.power_min,
+      power_max: config.power_max,
+      delta_min: config.delta_min,
+      delta_max: config.delta_max,
+      mos_temp_min: config.mos_temp_min,
+      mos_temp_max: config.mos_temp_max,
+      temp_sensors_min: config.temp_sensors_min ?? [],
+      temp_sensors_max: config.temp_sensors_max ?? [],
+
+      temperature_min: config.temperature_min,
+      temperature_max: config.temperature_max,
+
+      miniature_view: config.miniature_view ?? false,
       capacity_remaining: config.capacity_remaining ?? '',
       capacity_total_ah: config.capacity_total_ah,
 
@@ -655,6 +674,24 @@ export class JkBmsReactorCardEditor extends LitElement {
       includeDomains: ['sensor', 'input_number', 'number'],
       onChanged: this._tempSensorChanged,
     })}
+                <ha-textfield
+                  class="range-field"
+                  type="number"
+                  step="0.5"
+                  .value=${(this._config.temp_sensors_min ?? [])[index] ?? ''}
+                  placeholder="min"
+                  @input=${(ev: CustomEvent) => this._tempSensorRangeChanged(ev, index, 'min')}
+                  title="Optional: fixed min for this temperature sparkline"
+                ></ha-textfield>
+                <ha-textfield
+                  class="range-field"
+                  type="number"
+                  step="0.5"
+                  .value=${(this._config.temp_sensors_max ?? [])[index] ?? ''}
+                  placeholder="max"
+                  @input=${(ev: CustomEvent) => this._tempSensorRangeChanged(ev, index, 'max')}
+                  title="Optional: fixed max for this temperature sparkline"
+                ></ha-textfield>
                 <div class="icon-btn" @click=${() => this._removeTempSensor(index)}>
                   <ha-icon icon="mdi:delete"></ha-icon>
                 </div>
@@ -687,6 +724,136 @@ export class JkBmsReactorCardEditor extends LitElement {
                       placeholder="e.g. 57.6"
                     ></ha-textfield>
                     <div class="description">Optional: clamp voltage sparkline upper bound</div>
+                  </div>
+
+                  <div class="option">
+                    <label>Current Min (A)</label>
+                    <ha-textfield
+                      type="number"
+                      step="0.1"
+                      .value=${this._config.current_min ?? ''}
+                      .configValue=${'current_min'}
+                      @input=${this._valueChanged}
+                      placeholder="e.g. -100"
+                    ></ha-textfield>
+                    <div class="description">Optional: clamp current sparkline lower bound</div>
+                  </div>
+
+                  <div class="option">
+                    <label>Current Max (A)</label>
+                    <ha-textfield
+                      type="number"
+                      step="0.1"
+                      .value=${this._config.current_max ?? ''}
+                      .configValue=${'current_max'}
+                      @input=${this._valueChanged}
+                      placeholder="e.g. 100"
+                    ></ha-textfield>
+                    <div class="description">Optional: clamp current sparkline upper bound</div>
+                  </div>
+
+                  <div class="option">
+                    <label>Power Min (W)</label>
+                    <ha-textfield
+                      type="number"
+                      step="1"
+                      .value=${this._config.power_min ?? ''}
+                      .configValue=${'power_min'}
+                      @input=${this._valueChanged}
+                      placeholder="e.g. 0"
+                    ></ha-textfield>
+                    <div class="description">Optional: clamp power sparkline lower bound</div>
+                  </div>
+
+                  <div class="option">
+                    <label>Power Max (W)</label>
+                    <ha-textfield
+                      type="number"
+                      step="1"
+                      .value=${this._config.power_max ?? ''}
+                      .configValue=${'power_max'}
+                      @input=${this._valueChanged}
+                      placeholder="e.g. 5000"
+                    ></ha-textfield>
+                    <div class="description">Optional: clamp power sparkline upper bound</div>
+                  </div>
+
+                  <div class="option">
+                    <label>Delta Min (V)</label>
+                    <ha-textfield
+                      type="number"
+                      step="0.001"
+                      .value=${this._config.delta_min ?? ''}
+                      .configValue=${'delta_min'}
+                      @input=${this._valueChanged}
+                      placeholder="e.g. 0"
+                    ></ha-textfield>
+                    <div class="description">Optional: clamp delta sparkline lower bound</div>
+                  </div>
+
+                  <div class="option">
+                    <label>Delta Max (V)</label>
+                    <ha-textfield
+                      type="number"
+                      step="0.001"
+                      .value=${this._config.delta_max ?? ''}
+                      .configValue=${'delta_max'}
+                      @input=${this._valueChanged}
+                      placeholder="e.g. 0.15"
+                    ></ha-textfield>
+                    <div class="description">Optional: clamp delta sparkline upper bound</div>
+                  </div>
+
+                  <div class="option">
+                    <label>Default Temperature Min (°C)</label>
+                    <ha-textfield
+                      type="number"
+                      step="0.5"
+                      .value=${this._config.temperature_min ?? ''}
+                      .configValue=${'temperature_min'}
+                      @input=${this._valueChanged}
+                      placeholder="e.g. 0"
+                    ></ha-textfield>
+                    <div class="description">Optional fallback: used when a per-temp min/max is not set</div>
+                  </div>
+
+                  <div class="option">
+                    <label>Default Temperature Max (°C)</label>
+                    <ha-textfield
+                      type="number"
+                      step="0.5"
+                      .value=${this._config.temperature_max ?? ''}
+                      .configValue=${'temperature_max'}
+                      @input=${this._valueChanged}
+                      placeholder="e.g. 80"
+                    ></ha-textfield>
+                    <div class="description">Optional fallback: used when a per-temp min/max is not set</div>
+                  </div>
+
+                  <div class="option">
+                    <label>MOS Temp Min (°C)</label>
+                    <ha-textfield
+                      type="number"
+                      step="0.5"
+                      .value=${this._config.mos_temp_min ?? ''}
+                      .configValue=${'mos_temp_min'}
+                      @input=${this._valueChanged}
+                      placeholder="e.g. 0"
+                    ></ha-textfield>
+                    <div class="description">Optional: fixed min for MOS temperature sparkline</div>
+                  </div>
+
+                  <div class="option">
+                    <label>MOS Temp Max (°C)</label>
+                    <ha-textfield
+                      type="number"
+                      step="0.5"
+                      .value=${this._config.mos_temp_max ?? ''}
+                      .configValue=${'mos_temp_max'}
+                      @input=${this._valueChanged}
+                      placeholder="e.g. 80"
+                    ></ha-textfield>
+                    <div class="description">Optional: fixed max for MOS temperature sparkline</div>
                   </div>
 
                   <div class="section-title">Capacity (Optional)</div>
@@ -760,6 +927,17 @@ export class JkBmsReactorCardEditor extends LitElement {
         </div>
 
         <div class="section-title">Display Options</div>
+
+        <div class="option">
+          <ha-switch
+            .checked=${this._config.miniature_view ?? false}
+            .configValue=${'miniature_view'}
+            @change=${this._toggleChanged}
+          >
+            <span slot="label">Miniature View</span>
+          </ha-switch>
+          <div class="description">Show a compact circular overview (hides cell grid, analytics, and status bar)</div>
+        </div>
 
         <div class="option">
           <ha-switch
@@ -910,14 +1088,24 @@ export class JkBmsReactorCardEditor extends LitElement {
   private _addTempSensor() {
     const temp_sensors = [...(this._config.temp_sensors || [])];
     temp_sensors.push('');
-    this._config = { ...this._config, temp_sensors };
+    const temp_sensors_min = [...(this._config.temp_sensors_min ?? [])];
+    const temp_sensors_max = [...(this._config.temp_sensors_max ?? [])];
+    temp_sensors_min.push(null);
+    temp_sensors_max.push(null);
+
+    this._config = { ...this._config, temp_sensors, temp_sensors_min, temp_sensors_max };
     this._configChanged();
   }
 
   private _removeTempSensor(index: number) {
     const temp_sensors = [...(this._config.temp_sensors || [])];
     temp_sensors.splice(index, 1);
-    this._config = { ...this._config, temp_sensors };
+    const temp_sensors_min = [...(this._config.temp_sensors_min ?? [])];
+    const temp_sensors_max = [...(this._config.temp_sensors_max ?? [])];
+    if (index >= 0 && index < temp_sensors_min.length) temp_sensors_min.splice(index, 1);
+    if (index >= 0 && index < temp_sensors_max.length) temp_sensors_max.splice(index, 1);
+
+    this._config = { ...this._config, temp_sensors, temp_sensors_min, temp_sensors_max };
     this._configChanged();
   }
 
@@ -929,6 +1117,34 @@ export class JkBmsReactorCardEditor extends LitElement {
     const temp_sensors = [...(this._config.temp_sensors || [])];
     temp_sensors[index] = value;
     this._config = { ...this._config, temp_sensors };
+    this._configChanged();
+  }
+
+  private _tempSensorRangeChanged(ev: CustomEvent, index: number, which: 'min' | 'max') {
+    const target = ev.target as any;
+    let value: any = target.value;
+
+    // Support HA textfield event shape
+    if ((ev as any).detail && (ev as any).detail.value !== undefined) {
+      value = (ev as any).detail.value;
+    }
+
+    const num: number | null = value === '' || value === undefined || value === null
+      ? null
+      : Number(value);
+
+    const nextMin = [...(this._config.temp_sensors_min ?? [])];
+    const nextMax = [...(this._config.temp_sensors_max ?? [])];
+
+    // Ensure arrays long enough
+    const desiredLen = Math.max((this._config.temp_sensors ?? []).length, index + 1);
+    while (nextMin.length < desiredLen) nextMin.push(null);
+    while (nextMax.length < desiredLen) nextMax.push(null);
+
+    if (which === 'min') nextMin[index] = Number.isFinite(num) ? num : null;
+    else nextMax[index] = Number.isFinite(num) ? num : null;
+
+    this._config = { ...this._config, temp_sensors_min: nextMin, temp_sensors_max: nextMax };
     this._configChanged();
   }
 

@@ -34,6 +34,91 @@ export const styles = css`
     gap: 16px;
   }
 
+  /* Miniature View */
+  .miniature {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .mini-orbit {
+    width: 100%;
+    max-width: 360px;
+    display: grid;
+    grid-template-columns: 1fr auto 1fr;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .mini-node {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .miniature .icon-circle {
+    width: 46px;
+    height: 46px;
+  }
+
+  .miniature .icon-circle ha-icon {
+    --mdc-icon-size: 24px;
+  }
+
+  .mini-node-value {
+    font-size: 0.85em;
+    color: var(--secondary-text-color);
+    min-height: 1em;
+  }
+
+  .miniature .reactor-ring-container {
+    width: 140px;
+    height: 140px;
+  }
+
+  .miniature .reactor-ring {
+    width: 112px;
+    height: 112px;
+  }
+
+  .miniature .soc-value {
+    font-size: 2.2em;
+  }
+
+  .miniature .capacity-text {
+    font-size: 0.8em;
+  }
+
+  .mini-stats {
+    width: 100%;
+    max-width: 360px;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+  }
+
+  .mini-stat {
+    background: var(--panel-bg);
+    border: var(--panel-border);
+    border-radius: 12px;
+    padding: 10px 12px;
+    text-align: center;
+  }
+
+  .mini-label {
+    font-size: 0.82em;
+    color: var(--secondary-text-color);
+    margin-bottom: 2px;
+  }
+
+  .mini-value {
+    font-size: 1.08em;
+    font-weight: 700;
+    color: var(--primary-text-color);
+  }
+
   /* Flow Section - Top area with charge/reactor/discharge */
   .flow-section {
     display: grid;
