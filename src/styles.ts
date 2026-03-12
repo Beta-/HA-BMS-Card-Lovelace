@@ -193,11 +193,21 @@ export const styles = css`
     font-size: 0.85em;
   }
 
-  .node-current {
-    font-size: 0.9em;
+  .line-current {
+    position: absolute;
+    font-size: 0.85em;
     font-weight: bold;
-    color: var(--accent-color);
-    margin-top: 2px;
+    z-index: 3;
+    pointer-events: none;
+    white-space: nowrap;
+  }
+
+  .line-current-charge {
+    color: var(--solar-color);
+  }
+
+  .line-current-discharge {
+    color: var(--discharge-color);
   }
 
   /* Reactor Ring Container with Progress */

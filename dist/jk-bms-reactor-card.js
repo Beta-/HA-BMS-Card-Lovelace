@@ -937,11 +937,21 @@ const styles = i$3`
     font-size: 0.85em;
   }
 
-  .node-current {
-    font-size: 0.9em;
+  .line-current {
+    position: absolute;
+    font-size: 0.85em;
     font-weight: bold;
-    color: var(--accent-color);
-    margin-top: 2px;
+    z-index: 3;
+    pointer-events: none;
+    white-space: nowrap;
+  }
+
+  .line-current-charge {
+    color: var(--solar-color);
+  }
+
+  .line-current-discharge {
+    color: var(--discharge-color);
   }
 
   /* Reactor Ring Container with Progress */
@@ -2802,9 +2812,6 @@ class JkBmsReactorCard extends i {
             <ha-icon icon="mdi:power-plug-outline"></ha-icon>
           </div>
           <div class="node-label">Charge</div>
-          ${chargeCurrent > 0 ? b`
-            <div class="node-current">${formatNumber(chargeCurrent, 1)} A</div>
-          ` : ""}
         </div>
 
         <!-- Reactor Ring (SOC Progress) -->
@@ -2843,10 +2850,21 @@ class JkBmsReactorCard extends i {
             <ha-icon icon="mdi:power-socket"></ha-icon>
           </div>
           <div class="node-label">Load</div>
-          ${dischargeCurrent > 0 ? b`
-            <div class="node-current">${formatNumber(dischargeCurrent, 1)} A</div>
-          ` : ""}
         </div>
+
+        <!-- Amps labels over the flow lines -->
+        ${chargeCurrent > 0 ? b`
+          <div class="line-current line-current-charge"
+               style="left: 32.8%; top: calc(${this._flowLineY / 180 * 100}% - 6px); transform: translate(-50%, -100%)">
+            ${formatNumber(chargeCurrent, 1)} A
+          </div>
+        ` : ""}
+        ${dischargeCurrent > 0 ? b`
+          <div class="line-current line-current-discharge"
+               style="left: 67.2%; top: calc(${this._flowLineY / 180 * 100}% - 6px); transform: translate(-50%, -100%)">
+            ${formatNumber(dischargeCurrent, 1)} A
+          </div>
+        ` : ""}
 
         <!-- SVG Flow Lines with animated dots -->
         <svg class="flow-svg" viewBox="0 0 400 180" preserveAspectRatio="none">
