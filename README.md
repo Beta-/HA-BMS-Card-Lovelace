@@ -5,6 +5,10 @@ A beautiful, reactor-style Lovelace custom card for visualizing JK BMS battery p
 ![Version](https://img.shields.io/badge/version-1.0.0-blue)
 ![License](https://img.shields.io/badge/license-MIT-green)
 
+## Screenshots
+
+![JK BMS Reactor Card – full layout](images/image.png)
+
 ## Features
 
 ✨ **Core Reactor Design**: Central circular SOC display with animated reactor ring  
